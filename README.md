@@ -13,6 +13,22 @@ You can control several entities per domain. Swipe left/right to change page, sw
 - **NFC:** scanned tags are sent to Home Assistant as `tag_scanned` events, and the dial shows the tag name sent back by HA. HA decides what each tag does (see [NFC tags](#nfc-tags)).
 - **Power:** "snow" screensaver after a timeout, then the dial powers off on battery. Both timeouts can be set from HA.
 
+## Screenshots
+
+Rendered mockups of the pages (not photos of the device). The Face views are placeholders and are not shown.
+
+| | Analog | 14-segment | Modern |
+|---|:---:|:---:|:---:|
+| **Clock** | <img src="docs/screenshots/01_clock_analog.png" width="180" alt="Clock analog"> | <img src="docs/screenshots/01_clock_seg14.png" width="180" alt="Clock seg14"> | <img src="docs/screenshots/01_clock_moderno.png" width="180" alt="Clock moderno"> |
+| **Thermostat** | <img src="docs/screenshots/02_thermo_analog.png" width="180" alt="Thermostat analog"> | <img src="docs/screenshots/02_thermo_seg14.png" width="180" alt="Thermostat seg14"> | <img src="docs/screenshots/02_thermo_moderno.png" width="180" alt="Thermostat moderno"> |
+| **RGBW light** | <img src="docs/screenshots/03_light_rgbw_analog.png" width="180" alt="RGBW light analog"> | <img src="docs/screenshots/03_light_rgbw_seg14.png" width="180" alt="RGBW light seg14"> | <img src="docs/screenshots/03_light_rgbw_moderno.png" width="180" alt="RGBW light moderno"> |
+| **HWB light** | <img src="docs/screenshots/04_light_hwb_analog.png" width="180" alt="HWB light analog"> | <img src="docs/screenshots/04_light_hwb_seg14.png" width="180" alt="HWB light seg14"> | <img src="docs/screenshots/04_light_hwb_moderno.png" width="180" alt="HWB light moderno"> |
+| **Music** | <img src="docs/screenshots/05_music_analog.png" width="180" alt="Music analog"> | <img src="docs/screenshots/05_music_seg14.png" width="180" alt="Music seg14"> | <img src="docs/screenshots/05_music_moderno.png" width="180" alt="Music moderno"> |
+
+| Settings | NFC tag | Screensaver |
+|:---:|:---:|:---:|
+| <img src="docs/screenshots/06_settings.png" width="180" alt="Settings"> | <img src="docs/screenshots/07_tag.png" width="180" alt="NFC tag"> | <img src="docs/screenshots/08_screensaver.png" width="180" alt="Screensaver"> |
+
 ## Controls
 
 | Gesture | Action |
@@ -58,6 +74,8 @@ m5_v2/
   settings.yaml, tag_page.yaml, screensaver.yaml
 fonts/                DSEG14Classic, Material Design Icons webfont
 images/               music cover placeholder
+scripts/              cover art JPEG → BMP conversion (runs in HA)
+docs/screenshots/     mockups shown in this README
 ```
 
 Comments in the YAML files are in Italian.
