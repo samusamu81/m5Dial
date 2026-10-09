@@ -1,0 +1,76 @@
+obj: # music_view_seg14: tutto in DSEG14 (14 segmenti). Sopra il tempo trascorso mm:ss, al centro 3 tasti, sotto il titolo a scorrimento
+  id: music_view_seg14
+  hidden: true
+  height: 240 # esplicito, non SIZE_CONTENT (vedi esphome-lvgl-quirks: centratura)
+  width: 240
+  align: CENTER
+  pad_all: 0
+  border_width: 0
+  bg_color: 0x000000
+  bg_opa: COVER
+  widgets:
+    - label: # tempo trascorso del brano, mm:ss (aggiornato ogni secondo, vedi interval 1s in music_act.yaml)
+        id: lbl_music_seg14_time
+        align: CENTER
+        y: -60
+        text_font: font_music_seg14_big
+        text_color: 0x22C55E
+        text: "00:00"
+    # Fila centrale: 3 tasti cliccabili, cornice grigia e scritta 14 segmenti
+    - button:
+        id: btn_music_seg14_prev
+        align: CENTER
+        x: -70
+        y: 0
+        width: 60
+        height: 40
+        radius: 4
+        pad_all: 0
+        bg_color: 0x000000
+        border_width: 2
+        border_color: 0x808080
+        widgets:
+          - label: {align: CENTER, text_font: font_music_seg14, text_color: 0xFFFFFF, text: "<<"}
+        on_click:
+          - script.execute: music_prev_track
+    - button:
+        id: btn_music_seg14_play
+        align: CENTER
+        x: 0
+        y: 0
+        width: 60
+        height: 40
+        radius: 4
+        pad_all: 0
+        bg_color: 0x000000
+        border_width: 2
+        border_color: 0x808080
+        widgets:
+          - label: {align: CENTER, text_font: font_music_seg14, text_color: 0xFFFFFF, text: ">||"}
+        on_click:
+          - script.execute: music_play_pause
+    - button:
+        id: btn_music_seg14_next
+        align: CENTER
+        x: 70
+        y: 0
+        width: 60
+        height: 40
+        radius: 4
+        pad_all: 0
+        bg_color: 0x000000
+        border_width: 2
+        border_color: 0x808080
+        widgets:
+          - label: {align: CENTER, text_font: font_music_seg14, text_color: 0xFFFFFF, text: ">>"}
+        on_click:
+          - script.execute: music_next_track
+    - label: # titolo del brano, a scorrimento continuo (long_mode SCROLL_CIRCULAR) dentro una fascia larga 190px
+        id: lbl_music_seg14_title
+        align: CENTER
+        y: 60
+        width: 190
+        long_mode: SCROLL_CIRCULAR
+        text_font: font_music_seg14
+        text_color: 0x3B82F6
+        text: "---"

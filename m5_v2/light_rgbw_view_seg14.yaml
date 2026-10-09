@@ -1,0 +1,147 @@
+obj: # light_rgbw_view_seg14: croce R/G/B/W, lettera+valore a 3 cifre per canale, tocca un quadrante per selezionarlo
+  id: light_rgbw_view_seg14
+  hidden: true
+  height: 240
+  width: 240
+  align: CENTER
+  pad_all: 0
+  border_width: 0
+  bg_color: 0x000000
+  bg_opa: COVER
+  widgets:
+    # Catcher trasparenti, uno per quadrante (dichiarati per primi cosi' letter/value/croce,
+    # non cliccabili, restano sopra senza intercettare il tocco): tap -> seleziona il canale
+    - obj: # quadrante alto-sinistra: R
+        align: CENTER
+        x: -60
+        y: -60
+        width: 120
+        height: 120
+        pad_all: 0
+        border_width: 0
+        bg_opa: TRANSP
+        on_click:
+          - lambda: 'id(rgbw_selected_channel) = (id(rgbw_selected_channel) == 0) ? -1 : 0;'
+          - script.execute: rgbw_update_selection
+    - obj: # quadrante alto-destra: G
+        align: CENTER
+        x: 60
+        y: -60
+        width: 120
+        height: 120
+        pad_all: 0
+        border_width: 0
+        bg_opa: TRANSP
+        on_click:
+          - lambda: 'id(rgbw_selected_channel) = (id(rgbw_selected_channel) == 1) ? -1 : 1;'
+          - script.execute: rgbw_update_selection
+    - obj: # quadrante basso-sinistra: B
+        align: CENTER
+        x: -60
+        y: 60
+        width: 120
+        height: 120
+        pad_all: 0
+        border_width: 0
+        bg_opa: TRANSP
+        on_click:
+          - lambda: 'id(rgbw_selected_channel) = (id(rgbw_selected_channel) == 2) ? -1 : 2;'
+          - script.execute: rgbw_update_selection
+    - obj: # quadrante basso-destra: W
+        align: CENTER
+        x: 60
+        y: 60
+        width: 120
+        height: 120
+        pad_all: 0
+        border_width: 0
+        bg_opa: TRANSP
+        on_click:
+          - lambda: 'id(rgbw_selected_channel) = (id(rgbw_selected_channel) == 3) ? -1 : 3;'
+          - script.execute: rgbw_update_selection
+    # Colore reale (RGBW_loc + blend bianco), aggiornato da rgbw_refresh_view
+    - label:
+        id: lbl_rgbw_x
+        align: CENTER
+        x: 0
+        y: -15
+        text_color: 0x000000 # colore reale applicato da rgbw_refresh_view, nero finche' non arriva il primo sync HA
+        text_font: font_rgbw_value
+        text: "X"
+    # Stato luce (ON/OFF), aggiornato da light_rgbw_state_txt
+    - label:
+        id: lbl_rgbw_state
+        align: CENTER
+        x: 0
+        y: 15
+        text_color: 0xFFFFFF
+        text_font: font_rgbw_state_seg14
+        text: "OFF"
+    # R: lettera in alto, valore sotto (piu' vicino al centro)
+    - label:
+        id: lbl_rgbw_r_letter
+        align: CENTER
+        x: -60
+        y: -80
+        text_color: 0x808080 # rosso reale applicato da light_rgbw_state_txt al primo sync HA
+        text_font: font_rgbw_letter_seg14
+        text: "R"
+    - label:
+        id: lbl_rgbw_r_val
+        align: CENTER
+        x: -65
+        y: -50
+        text_color: 0x808080 # rosso reale applicato da light_rgbw_state_txt al primo sync HA
+        text_font: font_rgbw_value
+        text: "000"
+    # G: lettera in alto, valore sotto (speculare a R)
+    - label:
+        id: lbl_rgbw_g_letter
+        align: CENTER
+        x: 60
+        y: -80
+        text_color: 0x808080 # verde reale applicato da light_rgbw_state_txt al primo sync HA
+        text_font: font_rgbw_letter_seg14
+        text: "G"
+    - label:
+        id: lbl_rgbw_g_val
+        align: CENTER
+        x: 65
+        y: -50
+        text_color: 0x808080 # verde reale applicato da light_rgbw_state_txt al primo sync HA
+        text_font: font_rgbw_value
+        text: "000"
+    # B: valore in alto (piu' vicino al centro), lettera sotto
+    - label:
+        id: lbl_rgbw_b_val
+        align: CENTER
+        x: -65
+        y: 50
+        text_color: 0x808080 # blu reale applicato da light_rgbw_state_txt al primo sync HA
+        text_font: font_rgbw_value
+        text: "000"
+    - label:
+        id: lbl_rgbw_b_letter
+        align: CENTER
+        x: -60
+        y: 80
+        text_color: 0x808080 # blu reale applicato da light_rgbw_state_txt al primo sync HA
+        text_font: font_rgbw_letter_seg14
+        text: "B"
+    # W: valore in alto (speculare a B), lettera sotto
+    - label:
+        id: lbl_rgbw_w_val
+        align: CENTER
+        x: 65
+        y: 50
+        text_color: 0x808080 # bianco reale applicato da light_rgbw_state_txt al primo sync HA
+        text_font: font_rgbw_value
+        text: "000"
+    - label:
+        id: lbl_rgbw_w_letter
+        align: CENTER
+        x: 60
+        y: 80
+        text_color: 0x808080 # bianco reale applicato da light_rgbw_state_txt al primo sync HA
+        text_font: font_rgbw_letter_seg14
+        text: "W"

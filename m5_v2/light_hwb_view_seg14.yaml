@@ -1,0 +1,119 @@
+obj: # light_hwb_view_seg14: layout verticale H / hue / W+B, tutto in stile 14 segmenti.
+     # Tap per selezionare il canale: 10-2 (alto) = H, 2-6 (basso-dx) = Bl, 6-10 (basso-sx) = Wh,
+     # approssimati con 3 rettangoli che tassellano lo schermo (stesso approccio pragmatico dei
+     # 4 quadranti di light_rgbw_view_seg14.yaml, non spicchi a 120° esatti).
+  id: light_hwb_view_seg14
+  hidden: true
+  height: 240
+  width: 240
+  align: CENTER
+  pad_all: 0
+  border_width: 0
+  bg_color: 0x000000
+  bg_opa: COVER
+  widgets:
+    # Catcher trasparenti, dichiarati per primi (stesso motivo di light_rgbw_view_seg14: le label/X/stato,
+    # non cliccabili, restano sopra senza intercettare il tocco): tap -> seleziona il canale
+    - obj: # settore alto (~10-2 o'clock): H
+        align: CENTER
+        y: -70
+        width: 240
+        height: 100
+        pad_all: 0
+        border_width: 0
+        bg_opa: TRANSP
+        on_click:
+          - lambda: 'id(hwb_selected_channel) = (id(hwb_selected_channel) == 0) ? -1 : 0;'
+          - script.execute: hwb_update_selection
+    - obj: # settore basso-sinistra (~6-10 o'clock): Wh
+        align: CENTER
+        x: -60
+        y: 50
+        width: 120
+        height: 140
+        pad_all: 0
+        border_width: 0
+        bg_opa: TRANSP
+        on_click:
+          - lambda: 'id(hwb_selected_channel) = (id(hwb_selected_channel) == 1) ? -1 : 1;'
+          - script.execute: hwb_update_selection
+    - obj: # settore basso-destra (~2-6 o'clock): Bl
+        align: CENTER
+        x: 60
+        y: 50
+        width: 120
+        height: 140
+        pad_all: 0
+        border_width: 0
+        bg_opa: TRANSP
+        on_click:
+          - lambda: 'id(hwb_selected_channel) = (id(hwb_selected_channel) == 2) ? -1 : 2;'
+          - script.execute: hwb_update_selection
+    # Colore reale (hue + blend whiteness), aggiornato da hwb_refresh_view
+    - label:
+        id: lbl_hwb_x
+        align: CENTER
+        x: 0
+        y: -5
+        text_color: 0x000000 # colore reale applicato da hwb_refresh_view, nero finche' non arriva il primo sync HA
+        text_font: font_hwb_value
+        text: "X"
+    # Stato luce (ON/OFF), aggiornato da hwb_refresh_view (font condiviso con light_rgbw_view_seg14)
+    - label:
+        id: lbl_hwb_state
+        align: CENTER
+        x: 0
+        y: 34
+        text_color: 0xFFFFFF
+        text_font: font_rgbw_state_seg14
+        text: "OFF"
+    # Riga 1 (16% dall'alto): lettera H, centrata, colore = hue pura (S=100%)
+    - label:
+        id: lbl_hwb_h_letter
+        align: CENTER
+        y: -82
+        text_color: 0x3399FF # placeholder: hue=210 pura (statico, in attesa dell'algebra colore)
+        text_font: font_hwb_letter
+        text: "H"
+    # Riga 2 (32% dall'alto): valore HUE 0-360, si autocentra, stesso colore di H
+    - label:
+        id: lbl_hwb_hue_val
+        align: CENTER
+        y: -43
+        text_color: 0x3399FF
+        text_font: font_hwb_value
+        text: "210" # placeholder
+    # Riga 3 (48% dall'alto): Wh a 25% da sinistra, Bl a 25% da destra. Colore Wh = hue+whiteness
+    - label:
+        id: lbl_hwb_w_letter
+        align: CENTER
+        x: -60
+        y: -5
+        text_color: 0x3399FF # placeholder: hue=210 + whiteness=20
+        text_font: font_hwb_letter
+        text: "Wh"
+    - label:
+        id: lbl_hwb_b_letter
+        align: CENTER
+        x: 60
+        y: -5
+        text_color: 0x338CE5 # placeholder: hue=210 + whiteness=20 + blackness=10 (colore reale finale)
+        text_font: font_hwb_letter
+        text: "Bl"
+    # Riga 4: valori whiteness/blackness (0-100), centrati sotto le rispettive lettere
+    - label:
+        id: lbl_hwb_white_val
+        align: CENTER
+        x: -60
+        y: 34
+        text_color: 0x3399FF
+        text_font: font_hwb_value_small
+        text: "20" # placeholder
+    - label:
+        id: lbl_hwb_black_val
+        align: CENTER
+        x: 60
+        y: 34
+        text_color: 0x338CE5
+        text_font: font_hwb_value_small
+        text: "10" # placeholder

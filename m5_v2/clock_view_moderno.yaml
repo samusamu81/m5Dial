@@ -1,0 +1,103 @@
+obj: # clock_view_moderno: 3 archi concentrici pieni (ore/minuti/secondi) + tick meter
+  id: clock_view_moderno
+  hidden: false # stile di boot
+  height: 240
+  width: 240
+  align: CENTER
+  pad_all: 0
+  border_width: 0
+  bg_color: 0x0A192F # stesso blu notte scuro di clock_view_analog
+  widgets:
+    - arc: # interno - ore (rosso, 150px)
+        id: arc_inner_hour
+        align: CENTER
+        width: 150
+        height: 150
+        start_angle: 270 # ore 12
+        end_angle: 269 # quasi giro completo (359 gradi): start=end e' ambiguo per LVGL
+        value: 9
+        min_value: 0
+        max_value: 12
+        adjustable: false
+        arc_width: 10
+        arc_opa: TRANSP
+        arc_rounded: false
+        indicator:
+          arc_width: 10
+          arc_color: 0xFF0000
+          arc_rounded: true
+        knob:
+          bg_opa: TRANSP
+          border_width: 0
+          pad_all: 0
+    - arc: # medio - minuti (verde, 190px)
+        id: arc_mid_min
+        align: CENTER
+        width: 190
+        height: 190
+        start_angle: 270 # ore 12
+        end_angle: 269 # quasi giro completo (359 gradi): start=end e' ambiguo per LVGL
+        value: 30
+        min_value: 0
+        max_value: 59
+        adjustable: false
+        arc_width: 10
+        arc_opa: TRANSP
+        arc_rounded: false
+        indicator:
+          arc_width: 10
+          arc_color: 0x22C55E
+          arc_rounded: true
+        knob:
+          bg_opa: TRANSP
+          border_width: 0
+          pad_all: 0
+    - arc: # esterno - secondi (blu, 230px)
+        id: arc_outer_sec
+        align: CENTER
+        width: 230
+        height: 230
+        start_angle: 270 # ore 12
+        end_angle: 269 # quasi giro completo (359 gradi): start=end e' ambiguo per LVGL
+        value: 15
+        min_value: 0
+        max_value: 59
+        adjustable: false
+        arc_width: 10
+        arc_opa: TRANSP
+        arc_rounded: false
+        indicator:
+          arc_width: 10
+          arc_color: 0x3B82F6
+          arc_rounded: true
+        knob:
+          bg_opa: TRANSP
+          border_width: 0
+          pad_all: 0
+    - meter: # tacche bianche: 12 lunghe (ore) + 60 corte (secondi), sopra gli archi
+        height: 240
+        width: 240
+        align: CENTER
+        bg_opa: TRANSP
+        border_width: 0
+        pivot: # LVGL disegna sempre un pallino al centro per default: lo nascondiamo
+          bg_opa: TRANSP
+        scales:
+          - range_from: 0 # ore: 13 e non 12, per chiudere il cerchio con 12 intervalli equidistanti
+            range_to: 12
+            angle_range: 360
+            rotation: 270
+            ticks:
+              width: 2
+              count: 13
+              length: 40
+              color: 0xFFFFFF
+          - range_from: 0 # secondi: 61 e non 60, stesso motivo
+            range_to: 60
+            angle_range: 360
+            rotation: 270
+            ticks:
+              width: 1
+              count: 61
+              length: 15
+              color: 0xFFFFFF

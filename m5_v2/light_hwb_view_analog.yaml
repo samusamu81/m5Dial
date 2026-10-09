@@ -1,0 +1,252 @@
+obj: # light_hwb_view_analog: layout in costruzione (solo grafica per ora)
+  id: light_hwb_view_analog
+  hidden: false # stile di boot
+  height: 240 # esplicito, non SIZE_CONTENT (vedi esphome-lvgl-quirks: centratura)
+  width: 240
+  align: CENTER
+  pad_all: 0
+  border_width: 0
+  bg_color: 0x000000
+  bg_opa: COVER
+  widgets:
+    - meter: # ruota hue sulla meta' sinistra: 36 spicchi da 5 gradi, spicchio i = hue 10*i (0..350), da ore 6 a ore 12 passando per le 9
+        id: hwb_hue_wheel
+        width: 240
+        height: 240
+        align: CENTER
+        text_color: 0xFFFFFF # etichette 0-100 della scala di destra bianche (text_color e' ereditato dalle scale figlie)
+        bg_opa: TRANSP
+        border_width: 0 # sopprime il bordo LIGHT_STYLE del meter (vedi esphome-lvgl-quirks)
+        scales:
+          - range_from: 0 # 1 unita' = 1 spicchio = 5 gradi
+            range_to: 36
+            angle_range: 180
+            rotation: 90 # 0 a ore 6, 36 a ore 12, senso orario
+            indicators:
+              - arc: {id: hwb_hue_seg_00, start_value: 0, end_value: 1, width: 20, rounded: false, color: 0xFF0000} # 0-5 gradi, hue 0
+              - arc: {id: hwb_hue_seg_01, start_value: 1, end_value: 2, width: 20, rounded: false, color: 0xFF2A00} # 5-10 gradi, hue 10
+              - arc: {id: hwb_hue_seg_02, start_value: 2, end_value: 3, width: 20, rounded: false, color: 0xFF5500} # 10-15 gradi, hue 20
+              - arc: {id: hwb_hue_seg_03, start_value: 3, end_value: 4, width: 20, rounded: false, color: 0xFF8000} # 15-20 gradi, hue 30
+              - arc: {id: hwb_hue_seg_04, start_value: 4, end_value: 5, width: 20, rounded: false, color: 0xFFAA00} # 20-25 gradi, hue 40
+              - arc: {id: hwb_hue_seg_05, start_value: 5, end_value: 6, width: 20, rounded: false, color: 0xFFD400} # 25-30 gradi, hue 50
+              - arc: {id: hwb_hue_seg_06, start_value: 6, end_value: 7, width: 20, rounded: false, color: 0xFFFF00} # 30-35 gradi, hue 60
+              - arc: {id: hwb_hue_seg_07, start_value: 7, end_value: 8, width: 20, rounded: false, color: 0xD4FF00} # 35-40 gradi, hue 70
+              - arc: {id: hwb_hue_seg_08, start_value: 8, end_value: 9, width: 20, rounded: false, color: 0xAAFF00} # 40-45 gradi, hue 80
+              - arc: {id: hwb_hue_seg_09, start_value: 9, end_value: 10, width: 20, rounded: false, color: 0x80FF00} # 45-50 gradi, hue 90
+              - arc: {id: hwb_hue_seg_10, start_value: 10, end_value: 11, width: 20, rounded: false, color: 0x55FF00} # 50-55 gradi, hue 100
+              - arc: {id: hwb_hue_seg_11, start_value: 11, end_value: 12, width: 20, rounded: false, color: 0x2BFF00} # 55-60 gradi, hue 110
+              - arc: {id: hwb_hue_seg_12, start_value: 12, end_value: 13, width: 20, rounded: false, color: 0x00FF00} # 60-65 gradi, hue 120
+              - arc: {id: hwb_hue_seg_13, start_value: 13, end_value: 14, width: 20, rounded: false, color: 0x00FF2B} # 65-70 gradi, hue 130
+              - arc: {id: hwb_hue_seg_14, start_value: 14, end_value: 15, width: 20, rounded: false, color: 0x00FF55} # 70-75 gradi, hue 140
+              - arc: {id: hwb_hue_seg_15, start_value: 15, end_value: 16, width: 20, rounded: false, color: 0x00FF80} # 75-80 gradi, hue 150
+              - arc: {id: hwb_hue_seg_16, start_value: 16, end_value: 17, width: 20, rounded: false, color: 0x00FFAA} # 80-85 gradi, hue 160
+              - arc: {id: hwb_hue_seg_17, start_value: 17, end_value: 18, width: 20, rounded: false, color: 0x00FFD4} # 85-90 gradi, hue 170
+              - arc: {id: hwb_hue_seg_18, start_value: 18, end_value: 19, width: 20, rounded: false, color: 0x00FFFF} # 90-95 gradi, hue 180
+              - arc: {id: hwb_hue_seg_19, start_value: 19, end_value: 20, width: 20, rounded: false, color: 0x00D4FF} # 95-100 gradi, hue 190
+              - arc: {id: hwb_hue_seg_20, start_value: 20, end_value: 21, width: 20, rounded: false, color: 0x00AAFF} # 100-105 gradi, hue 200
+              - arc: {id: hwb_hue_seg_21, start_value: 21, end_value: 22, width: 20, rounded: false, color: 0x007FFF} # 105-110 gradi, hue 210
+              - arc: {id: hwb_hue_seg_22, start_value: 22, end_value: 23, width: 20, rounded: false, color: 0x0055FF} # 110-115 gradi, hue 220
+              - arc: {id: hwb_hue_seg_23, start_value: 23, end_value: 24, width: 20, rounded: false, color: 0x002BFF} # 115-120 gradi, hue 230
+              - arc: {id: hwb_hue_seg_24, start_value: 24, end_value: 25, width: 20, rounded: false, color: 0x0000FF} # 120-125 gradi, hue 240
+              - arc: {id: hwb_hue_seg_25, start_value: 25, end_value: 26, width: 20, rounded: false, color: 0x2A00FF} # 125-130 gradi, hue 250
+              - arc: {id: hwb_hue_seg_26, start_value: 26, end_value: 27, width: 20, rounded: false, color: 0x5500FF} # 130-135 gradi, hue 260
+              - arc: {id: hwb_hue_seg_27, start_value: 27, end_value: 28, width: 20, rounded: false, color: 0x7F00FF} # 135-140 gradi, hue 270
+              - arc: {id: hwb_hue_seg_28, start_value: 28, end_value: 29, width: 20, rounded: false, color: 0xAA00FF} # 140-145 gradi, hue 280
+              - arc: {id: hwb_hue_seg_29, start_value: 29, end_value: 30, width: 20, rounded: false, color: 0xD400FF} # 145-150 gradi, hue 290
+              - arc: {id: hwb_hue_seg_30, start_value: 30, end_value: 31, width: 20, rounded: false, color: 0xFF00FF} # 150-155 gradi, hue 300
+              - arc: {id: hwb_hue_seg_31, start_value: 31, end_value: 32, width: 20, rounded: false, color: 0xFF00D4} # 155-160 gradi, hue 310
+              - arc: {id: hwb_hue_seg_32, start_value: 32, end_value: 33, width: 20, rounded: false, color: 0xFF00AA} # 160-165 gradi, hue 320
+              - arc: {id: hwb_hue_seg_33, start_value: 33, end_value: 34, width: 20, rounded: false, color: 0xFF0080} # 165-170 gradi, hue 330
+              - arc: {id: hwb_hue_seg_34, start_value: 34, end_value: 35, width: 20, rounded: false, color: 0xFF0055} # 170-175 gradi, hue 340
+              - arc: {id: hwb_hue_seg_35, start_value: 35, end_value: 36, width: 20, rounded: false, color: 0xFF002B} # 175-180 gradi, hue 350
+          - range_from: 0 # lancetta hue: 0-350 su 175 gradi, centro di ogni spicchio (92.5+5i arrotondato a 92+5i: LVGL usa gradi interi, scarto 0.5 gradi accettato)
+            range_to: 350
+            angle_range: 175
+            rotation: 92
+            indicators:
+              - line:
+                  id: hwb_hue_needle
+                  width: 4
+                  color: 0x808080 # grigio
+                  length: -20 # raggio scala (110) - 20 = 90: arriva al bordo interno dell'anello colorato
+                  value: 0
+          - id: hwb_scale_right # scala 0-100 su 100 gradi a destra: 100 a ~ore 12:30 (285 gradi LVGL), 0 a ~ore 3:50 (25 gradi), cresce verso l'alto
+            range_from: 100 # range invertito (come la torta umidita' in thermo_view_moderno): 100 -> 285 gradi, 0 -> 385=25 gradi
+            range_to: 0
+            angle_range: 100
+            rotation: 285
+            ticks:
+              count: 5 # 0, 25, 50, 75, 100
+              width: 3
+              length: 8 # accorciate (erano 14): piu' spazio per le lancette Wh/Bl e verso il centro
+              color: 0xFFFFFF
+              major:
+                stride: 1 # ogni tacca e' major: serve per avere le etichette
+                width: 3
+                length: 8
+                color: 0xFFFFFF
+                label_gap: 6
+          - range_from: 0 # lancette Wh/Bl sulla scala di destra. Range NON invertito: ESPHome (IndicatorLine::set_value ->
+            range_to: 100 # clamp(value, min, max)) non gestisce min>max, quindi qui 0 = ~ore 12:30 e si passa 100 - valore (vedi hwb_refresh_view)
+            angle_range: 100
+            rotation: 285
+            indicators:
+              - line:
+                  id: hwb_wh_needle
+                  width: 4
+                  color: 0xFFFFFF # bianco
+                  length: -10 # fino a r=100, appena dentro le tacche (lunghe 8)
+                  value: 100 # = Wh 0
+              - line:
+                  id: hwb_bl_needle
+                  width: 6 # 2px piu' spessa delle altre
+                  color: 0x404040 # grigio scuro
+                  length: 75 # "tozza": 75% della lancetta Wh (100px = raggio 110 - 10), valore assoluto
+                  value: 100 # = Bl 0
+    - obj: # cerchio centrale nero: maschera la convergenza delle 3 lancette (come light_rgbw_view_analog), ospita i 3 selettori a triangolo
+        width: 120
+        height: 120
+        radius: 50%
+        align: CENTER
+        pad_all: 0
+        border_width: 0
+        bg_color: 0x000000
+        bg_opa: COVER
+        scrollable: false
+        clickable: false
+        widgets:
+          # Triangolo: Wh in alto, H in basso a sinistra, Bl in basso a destra.
+          # Lettere tutte grigio medio (colore della lancetta hue). Stato "checked" da hwb_update_selection.
+          - obj: # selettore H: nero/bordo bianco, lettera grigio medio (colore di H); selezionato = fondo grigio scuro, lettera bianca
+              id: btn_hwb_analog_h
+              width: 40
+              height: 40
+              radius: 50%
+              align: CENTER
+              x: -26
+              y: 10
+              pad_all: 0
+              border_width: 2
+              border_color: 0xFFFFFF
+              bg_color: 0x000000
+              bg_opa: COVER
+              clickable: false # il tap lo gestiscono gli hotspot in cima
+              checked: {bg_color: 0x404040}
+              widgets:
+                - label: {id: lbl_hwb_analog_h, align: CENTER, text_color: 0x808080, text_font: font_hwb_sel, text: "H"}
+          - obj: # selettore Wh: nero/bordo bianco, lettera grigio medio (colore di H); selezionato = fondo grigio scuro, lettera bianca
+              id: btn_hwb_analog_w
+              width: 40
+              height: 40
+              radius: 50%
+              align: CENTER
+              x: 0
+              y: -36
+              pad_all: 0
+              border_width: 2
+              border_color: 0xFFFFFF
+              bg_color: 0x000000
+              bg_opa: COVER
+              clickable: false # il tap lo gestiscono gli hotspot in cima
+              checked: {bg_color: 0x404040}
+              widgets:
+                - label: {id: lbl_hwb_analog_w, align: CENTER, text_color: 0x808080, text_font: font_hwb_sel, text: "Wh"}
+          - obj: # selettore Bl: nero/bordo bianco, lettera grigio medio (colore di H); selezionato = fondo grigio scuro, lettera bianca
+              id: btn_hwb_analog_b
+              width: 40
+              height: 40
+              radius: 50%
+              align: CENTER
+              x: 26
+              y: 10
+              pad_all: 0
+              border_width: 2
+              border_color: 0xFFFFFF
+              bg_color: 0x000000
+              bg_opa: COVER
+              clickable: false # il tap lo gestiscono gli hotspot in cima
+              checked: {bg_color: 0x404040}
+              widgets:
+                - label: {id: lbl_hwb_analog_b, align: CENTER, text_color: 0x808080, text_font: font_hwb_sel, text: "Bl"}
+    # Interruttore on/off decorativo, copiato da thermo_mode_ring/thermo_mode_dot (thermo_view_analog.yaml): stessa
+    # etichette ruotate, solo O = spento (al posto di OFF, 40 gradi) e I = acceso (al posto di HEAT, 65 gradi), niente AUTO.
+    # Anello spostato di (11,35) rispetto al thermo; O e I posizionate sul bordo dello schermo (ore 5 e 5:30).
+    - obj: # anello nero con bordo bianco
+        id: hwb_switch_ring
+        width: 50 # raggio 25
+        height: 50
+        radius: 50%
+        align: CENTER
+        x: 37 # thermo (26,31) + (11,35)
+        y: 66
+        pad_all: 0
+        border_width: 2
+        border_color: 0xFFFFFF
+        bg_color: 0x000000
+        bg_opa: COVER
+        clickable: false # decorativo: il tap passa agli hotspot
+        widgets:
+          - obj: # pallino bianco: orbita raggio 17, punta verso la scritta: O = 57 gradi (9,14), I = 103 gradi (-4,17) - vedi hwb_refresh_view
+              id: hwb_switch_dot
+              width: 10
+              height: 10
+              align: CENTER
+              radius: 50%
+              pad_all: 0
+              border_width: 0
+              bg_color: 0xFFFFFF
+              bg_opa: COVER
+              clickable: false
+              x: 9 # O (spento), stato iniziale di boot
+              y: 14
+    - label: # O (spento): ore 5 (60 gradi dal centro schermo), contro il bordo: r=109 -> (55,94), bordo glifo a ~117px dal centro
+        align: CENTER
+        x: 55
+        y: 94
+        text_color: 0xFFFFFF # non ruotata, come la I: la rotazione (pivot LVGL) la spostava dalla posizione calcolata
+        clickable: false
+        text: "O"
+    - label: # I (acceso): ore 5:30 (75 gradi dal centro schermo), contro il bordo: r=108 -> (28,104), bordo glifo a ~117px dal centro
+        align: CENTER
+        x: 28
+        y: 104
+        text_color: 0xFFFFFF # non ruotata (su richiesta): "I" verticale
+        clickable: false
+        text: "I"
+    # Hotspot di tap (ultimi = in cima), seguono il triangolo: fascia alta = Wh, basso-sinistra = H, basso-destra = Bl
+    - obj: # hotspot Wh: fascia alta
+        align: CENTER
+        x: 0
+        y: -70
+        width: 240
+        height: 100
+        pad_all: 0
+        border_width: 0
+        bg_opa: TRANSP
+        on_click:
+          - lambda: 'id(hwb_selected_channel) = (id(hwb_selected_channel) == 1) ? -1 : 1;'
+          - script.execute: hwb_update_selection
+    - obj: # hotspot H: settore basso-sinistra
+        align: CENTER
+        x: -60
+        y: 50
+        width: 120
+        height: 140
+        pad_all: 0
+        border_width: 0
+        bg_opa: TRANSP
+        on_click:
+          - lambda: 'id(hwb_selected_channel) = (id(hwb_selected_channel) == 0) ? -1 : 0;'
+          - script.execute: hwb_update_selection
+    - obj: # hotspot Bl: settore basso-destra
+        align: CENTER
+        x: 60
+        y: 50
+        width: 120
+        height: 140
+        pad_all: 0
+        border_width: 0
+        bg_opa: TRANSP
+        on_click:
+          - lambda: 'id(hwb_selected_channel) = (id(hwb_selected_channel) == 2) ? -1 : 2;'
+          - script.execute: hwb_update_selection

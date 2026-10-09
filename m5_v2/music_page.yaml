@@ -1,0 +1,33 @@
+<<: !include my_const.yaml
+<<: !include music_act.yaml
+
+lvgl:
+  pages:
+    - id: page_music
+      bg_color: 0x000000
+      bg_opa: COVER
+      on_load:
+        - lambda: id(current_page_index) = ${PAGE_MUSIC_ID};
+        - script.execute: music_apply_view_style # applica subito lo stile condiviso: senza, cambiando dominio si vedrebbe lo stile sbagliato finche' non si swipa su/giu'
+        - if: # nome dell'entita' mostrata, solo se ce n'e' piu' di una
+            condition:
+              lambda: 'return music_list.size() > 1;'
+            then:
+              - script.execute:
+                  id: entity_toast
+                  name: !lambda 'return entity_sel(music_list, id(music_sel))->name;'
+      on_swipe_left: !include common_swipe_next.yaml
+      on_swipe_right: !include common_swipe_previous.yaml
+      on_swipe_up: # v2: su/giu' = entita' successiva/precedente (lo stile di vista e' passato alla ghiera tenuta 3-5 s)
+        - script.execute:
+            id: music_entity_step
+            dir: 1
+      on_swipe_down:
+        - script.execute:
+            id: music_entity_step
+            dir: -1
+      widgets:
+        - !include music_view_analog.yaml
+        - !include music_view_seg14.yaml
+        - !include music_view_moderno.yaml
+        - !include music_view_face.yaml

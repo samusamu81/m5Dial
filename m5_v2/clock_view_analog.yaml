@@ -1,0 +1,89 @@
+obj: # clock_view_analog: lancette ore/minuti/secondi su meter
+  id: clock_view_analog
+  hidden: true
+  height: SIZE_CONTENT
+  width: 240
+  align: CENTER
+  pad_all: 0
+  border_width: 0
+  bg_color: 0x0A192F # blu notte scuro
+  widgets:
+    - meter: # clock face
+        height: 220
+        width: 220
+        align: CENTER
+        bg_opa: TRANSP
+        border_width: 0
+        text_color: 0xFF0000 # colore numeri (unico per tutto il meter, condiviso da tutte le scale)
+        scales:
+          - range_from: 0 # minutes scale (tacche + lancetta)
+            range_to: 60
+            angle_range: 360
+            rotation: 270
+            ticks:
+              width: 1
+              count: 61 # 61 e non 60: serve la tacca "60" (sovrapposta a "0") per chiudere il cerchio con 60 intervalli equidistanti
+              length: 10
+              color: 0x22C55E
+            indicators:
+              - line:
+                  id: minute_hand
+                  width: 3
+                  color: 0x22C55E
+                  length: -4
+                  value: 0
+              - line:
+                  id: second_hand
+                  width: 1
+                  color: 0x3B82F6
+                  length: -2
+                  value: 0
+          - range_from: 1 # hours scale for labels (1-12, si parte dalla posizione "ore 1" cosi' il giro di 330 gradi termina in cima con "12")
+            range_to: 12
+            angle_range: 330
+            rotation: 300
+            ticks:
+              width: 2
+              count: 12
+              length: 12
+              color: 0xFF0000
+              major:
+                stride: 1
+                width: 3
+                length: 16
+                color: 0xFF0000
+                label_gap: 14
+          - range_from: 0 # hi-res hours scale for hand
+            range_to: 720
+            angle_range: 360
+            rotation: 270
+            indicators:
+              - line:
+                  id: hour_hand
+                  width: 5
+                  color: 0xFF0000
+                  length: -30
+                  value: 0
+    - meter: # ghiera minuti separata: dimensione massima disponibile (240, pari al contenitore) + colore testo indipendente
+        height: 240
+        width: 240
+        align: CENTER
+        bg_opa: TRANSP
+        border_width: 0
+        text_color: 0x22C55E
+        scales:
+          - range_from: 0 # minutes scale for labels (0-55, ogni 5, da 0 a 330 gradi per evitare la collisione 0/60 in cima)
+            range_to: 55
+            angle_range: 330
+            rotation: 270
+            ticks:
+              width: 1
+              count: 12
+              length: 1 # tacca praticamente invisibile, restano solo i numeri
+              color: 0x22C55E
+              major:
+                stride: 1
+                width: 1
+                length: 1 # idem: tacca ridotta al minimo, resta solo il numero
+                color: 0x22C55E
+                label_gap: 4

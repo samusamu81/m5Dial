@@ -1,0 +1,223 @@
+obj: # music_view_analog: quadrante volume 270 gradi (gap in basso), scala 0-25 + ago "a punto" che segue il volume
+  id: music_view_analog
+  hidden: true
+  height: 240 # esplicito, non SIZE_CONTENT (vedi esphome-lvgl-quirks: centratura)
+  width: 240
+  align: CENTER
+  pad_all: 0
+  border_width: 0
+  bg_color: 0x000000
+  bg_opa: COVER
+  widgets:
+    - meter:
+        width: 240
+        height: 240
+        align: CENTER
+        bg_opa: TRANSP
+        border_width: 0 # sopprime il bordo LIGHT_STYLE del meter (vedi esphome-lvgl-quirks)
+        text_color: 0x808080 # etichette 0,5,...,25 in grigio (text_color ereditato dalle scale figlie)
+        scales:
+          - range_from: 0 # scala graduata 0-25: principali ogni 5 (con etichetta), secondarie ogni 1, sul bordo esterno
+            range_to: 25
+            angle_range: 270
+            rotation: 135 # 0 in basso a sinistra, 25 in basso a destra, gap 90 in basso
+            ticks:
+              count: 26 # 0,1,...,25
+              width: 2
+              length: 5 # accorciate (erano 7/14, gap 8) per spingere le etichette verso il bordo: liberano spazio al cerchio centrale
+              color: 0xFFFFFF
+              major:
+                stride: 5 # 0,5,10,15,20,25
+                width: 3
+                length: 10
+                color: 0xFFFFFF
+                label_gap: 2 # etichette a r~82-98
+          - range_from: 0 # ago del volume: scala 0-100 (= volume_level x 100), stessi angoli della scala graduata
+            range_to: 100
+            angle_range: 270
+            rotation: 135
+            indicators:
+              - line:
+                  id: music_volume_needle
+                  width: 7 # dimezzato (era 14), arrotondato: oltre il cerchio centrale ne resta visibile solo la punta
+                  color: 0xFF0000 # rosso
+                  rounded: true
+                  length: 80 # valore assoluto: punta a r=80, cerchio centrale r=72.5 -> sporge ~7px (+ tappo tondo), sotto le etichette (r~82)
+                  value: 0
+    # VU meter stereo decorativo nel gap in basso (sotto il cerchio, tra lo 0 e il 25): 2 righe da 10 led 6x5 (L sopra, R sotto),
+    # 7 verdi + 2 gialli + 1 rosso, spenti = grigio scuro. NON e' il segnale audio reale (il player non lo espone in HA):
+    # animazione pseudo-casuale attiva solo in play, vedi interval/music_vu_tick in music_act.yaml.
+    - obj: {id: vu_l_0, align: CENTER, x: -36, y: 79, width: 6, height: 5, radius: 1, pad_all: 0, border_width: 0, bg_color: 0x202020, bg_opa: COVER, clickable: false, scrollable: false}
+    - obj: {id: vu_l_1, align: CENTER, x: -28, y: 79, width: 6, height: 5, radius: 1, pad_all: 0, border_width: 0, bg_color: 0x202020, bg_opa: COVER, clickable: false, scrollable: false}
+    - obj: {id: vu_l_2, align: CENTER, x: -20, y: 79, width: 6, height: 5, radius: 1, pad_all: 0, border_width: 0, bg_color: 0x202020, bg_opa: COVER, clickable: false, scrollable: false}
+    - obj: {id: vu_l_3, align: CENTER, x: -12, y: 79, width: 6, height: 5, radius: 1, pad_all: 0, border_width: 0, bg_color: 0x202020, bg_opa: COVER, clickable: false, scrollable: false}
+    - obj: {id: vu_l_4, align: CENTER, x: -4, y: 79, width: 6, height: 5, radius: 1, pad_all: 0, border_width: 0, bg_color: 0x202020, bg_opa: COVER, clickable: false, scrollable: false}
+    - obj: {id: vu_l_5, align: CENTER, x: 4, y: 79, width: 6, height: 5, radius: 1, pad_all: 0, border_width: 0, bg_color: 0x202020, bg_opa: COVER, clickable: false, scrollable: false}
+    - obj: {id: vu_l_6, align: CENTER, x: 12, y: 79, width: 6, height: 5, radius: 1, pad_all: 0, border_width: 0, bg_color: 0x202020, bg_opa: COVER, clickable: false, scrollable: false}
+    - obj: {id: vu_l_7, align: CENTER, x: 20, y: 79, width: 6, height: 5, radius: 1, pad_all: 0, border_width: 0, bg_color: 0x202020, bg_opa: COVER, clickable: false, scrollable: false}
+    - obj: {id: vu_l_8, align: CENTER, x: 28, y: 79, width: 6, height: 5, radius: 1, pad_all: 0, border_width: 0, bg_color: 0x202020, bg_opa: COVER, clickable: false, scrollable: false}
+    - obj: {id: vu_l_9, align: CENTER, x: 36, y: 79, width: 6, height: 5, radius: 1, pad_all: 0, border_width: 0, bg_color: 0x202020, bg_opa: COVER, clickable: false, scrollable: false}
+    - obj: {id: vu_r_0, align: CENTER, x: -36, y: 88, width: 6, height: 5, radius: 1, pad_all: 0, border_width: 0, bg_color: 0x202020, bg_opa: COVER, clickable: false, scrollable: false}
+    - obj: {id: vu_r_1, align: CENTER, x: -28, y: 88, width: 6, height: 5, radius: 1, pad_all: 0, border_width: 0, bg_color: 0x202020, bg_opa: COVER, clickable: false, scrollable: false}
+    - obj: {id: vu_r_2, align: CENTER, x: -20, y: 88, width: 6, height: 5, radius: 1, pad_all: 0, border_width: 0, bg_color: 0x202020, bg_opa: COVER, clickable: false, scrollable: false}
+    - obj: {id: vu_r_3, align: CENTER, x: -12, y: 88, width: 6, height: 5, radius: 1, pad_all: 0, border_width: 0, bg_color: 0x202020, bg_opa: COVER, clickable: false, scrollable: false}
+    - obj: {id: vu_r_4, align: CENTER, x: -4, y: 88, width: 6, height: 5, radius: 1, pad_all: 0, border_width: 0, bg_color: 0x202020, bg_opa: COVER, clickable: false, scrollable: false}
+    - obj: {id: vu_r_5, align: CENTER, x: 4, y: 88, width: 6, height: 5, radius: 1, pad_all: 0, border_width: 0, bg_color: 0x202020, bg_opa: COVER, clickable: false, scrollable: false}
+    - obj: {id: vu_r_6, align: CENTER, x: 12, y: 88, width: 6, height: 5, radius: 1, pad_all: 0, border_width: 0, bg_color: 0x202020, bg_opa: COVER, clickable: false, scrollable: false}
+    - obj: {id: vu_r_7, align: CENTER, x: 20, y: 88, width: 6, height: 5, radius: 1, pad_all: 0, border_width: 0, bg_color: 0x202020, bg_opa: COVER, clickable: false, scrollable: false}
+    - obj: {id: vu_r_8, align: CENTER, x: 28, y: 88, width: 6, height: 5, radius: 1, pad_all: 0, border_width: 0, bg_color: 0x202020, bg_opa: COVER, clickable: false, scrollable: false}
+    - obj: {id: vu_r_9, align: CENTER, x: 36, y: 88, width: 6, height: 5, radius: 1, pad_all: 0, border_width: 0, bg_color: 0x202020, bg_opa: COVER, clickable: false, scrollable: false}
+    - obj: # cerchio centrale nero (diametro 145, r=72.5): nasconde il corpo dell'ago, resta visibile solo la punta
+        width: 145
+        height: 145
+        radius: 50%
+        align: CENTER
+        pad_all: 0
+        border_width: 0
+        bg_color: 0x000000
+        bg_opa: COVER
+        scrollable: false
+        clickable: false
+        widgets: # 3 pulsanti (+50%: 48x48, play/pause 72x48), distanziati di 2px, tutti dentro il cerchio (r=72.5): RW e FF sopra, play/pause sotto
+          - button: # traccia precedente
+              id: btn_music_analog_rw
+              width: 48
+              height: 48
+              radius: 6 # quadrato (angoli appena smussati)
+              align: CENTER
+              x: -25
+              y: -25
+              pad_all: 0
+              bg_color: 0x333333
+              widgets:
+                - label: {align: CENTER, text_color: 0xFFFFFF, text_font: montserrat_22, text: "RW"} # +50% (14 -> 21, built-in solo taglie pari)
+              on_click:
+                - script.execute: music_prev_track
+          - button: # traccia successiva
+              id: btn_music_analog_ff
+              width: 48
+              height: 48
+              radius: 6 # quadrato (angoli appena smussati)
+              align: CENTER
+              x: 25
+              y: -25
+              pad_all: 0
+              bg_color: 0x333333
+              widgets:
+                - label: {align: CENTER, text_color: 0xFFFFFF, text_font: montserrat_22, text: "FF"}
+              on_click:
+                - script.execute: music_next_track
+          - button: # play/pause (come il click della ghiera): rettangolare, largo 1.5x gli altri (72 vs 48)
+              id: btn_music_analog_pp
+              width: 72
+              height: 48
+              radius: 6
+              align: CENTER
+              x: 0
+              y: 31 # abbassato di 6 (era 25): angoli a r~66, ancora dentro il cerchio (r=72.5)
+              pad_all: 0
+              bg_color: 0x333333
+              widgets:
+                - obj: # spia di stato, rettangolino sottile sopra la scritta: verde fluo se in play, grigio altrimenti (vedi music_state in music_act.yaml)
+                    id: music_play_led
+                    width: 36
+                    height: 4
+                    radius: 1
+                    align: TOP_MID
+                    y: 6
+                    pad_all: 0
+                    border_width: 0
+                    bg_color: 0x808080
+                    bg_opa: COVER
+                    clickable: false
+                - label: {align: CENTER, y: 4, text_color: 0xFFFFFF, text_font: montserrat_22, text: ">||"}
+              on_click:
+                - script.execute: music_play_pause
+    # Contatore a 3 cifre "da cassetta" in alto (tra le etichette 10 e 15), abbassato a y=-76: sconfina sul cerchio nero,
+    # quindi e' dichiarato DOPO il cerchio (disegnato sopra): tempo trascorso del brano in secondi, 000-999 poi riparte.
+    # Ogni cifra e' un tamburo: una striscia verticale 0..9,0 che scorre (animazione LVGL) dentro una finestra alta una riga.
+    # Logica in music_act.yaml (interval music_counter_tick + script music_counter_reset).
+    - obj: # tamburo cifra 0 (0=centinaia): finestra che ritaglia la striscia 0..9,0; altezza = 1 riga, fissata a runtime (vedi music_counter_tick)
+        id: music_cnt_drum_0
+        align: CENTER
+        x: -22
+        y: -76
+        width: 13
+        height: 18
+        radius: 2
+        pad_all: 0
+        border_width: 0
+        bg_color: 0x202020
+        bg_opa: COVER
+        scrollable: false
+        clickable: false
+        widgets:
+          - label:
+              id: music_cnt_strip_0
+              align: TOP_MID
+              y: 0
+              text_font: font_music_counter
+              text_color: 0xFFFFFF
+              text_line_space: 0
+              text_align: CENTER
+              text: "0\n1\n2\n3\n4\n5\n6\n7\n8\n9\n0" # ultima riga = 0 ripetuto, per il "giro" 9 -> 0 in avanti
+    - obj: # tamburo cifra 1 (0=centinaia): finestra che ritaglia la striscia 0..9,0; altezza = 1 riga, fissata a runtime (vedi music_counter_tick)
+        id: music_cnt_drum_1
+        align: CENTER
+        x: -8
+        y: -76
+        width: 13
+        height: 18
+        radius: 2
+        pad_all: 0
+        border_width: 0
+        bg_color: 0x202020
+        bg_opa: COVER
+        scrollable: false
+        clickable: false
+        widgets:
+          - label:
+              id: music_cnt_strip_1
+              align: TOP_MID
+              y: 0
+              text_font: font_music_counter
+              text_color: 0xFFFFFF
+              text_line_space: 0
+              text_align: CENTER
+              text: "0\n1\n2\n3\n4\n5\n6\n7\n8\n9\n0" # ultima riga = 0 ripetuto, per il "giro" 9 -> 0 in avanti
+    - obj: # tamburo cifra 2 (0=centinaia): finestra che ritaglia la striscia 0..9,0; altezza = 1 riga, fissata a runtime (vedi music_counter_tick)
+        id: music_cnt_drum_2
+        align: CENTER
+        x: 6
+        y: -76
+        width: 13
+        height: 18
+        radius: 2
+        pad_all: 0
+        border_width: 0
+        bg_color: 0x202020
+        bg_opa: COVER
+        scrollable: false
+        clickable: false
+        widgets:
+          - label:
+              id: music_cnt_strip_2
+              align: TOP_MID
+              y: 0
+              text_font: font_music_counter
+              text_color: 0xFFFFFF
+              text_line_space: 0
+              text_align: CENTER
+              text: "0\n1\n2\n3\n4\n5\n6\n7\n8\n9\n0" # ultima riga = 0 ripetuto, per il "giro" 9 -> 0 in avanti
+    - button: # tastino reset del contatore, piccolo e senza scritta, accanto alle cifre
+        id: btn_music_cnt_reset
+        align: CENTER
+        x: 23
+        y: -76
+        width: 12
+        height: 12
+        radius: 2
+        pad_all: 0
+        bg_color: 0x808080
+        on_click:
+          - script.execute: music_counter_reset

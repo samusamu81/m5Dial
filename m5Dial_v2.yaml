@@ -1,0 +1,175 @@
+# TODO: aggiungere luci dimmerabili, RGB, RGBWW e luci on/off
+
+<<: !include m5_v2/my_const.yaml
+<<: !include m5_v2/my_conf.yaml
+<<: !include m5_v2/hw.yaml
+globals:
+  - id: current_page_index
+    type: int
+    initial_value: ${PAGE_CLOCK_ID} # Parte dall'orologio
+  - id: view_style # condiviso tra tutti i domini (clock/thermo/light_rgbw/light_hwb/music): la ghiera tenuta 3-5 s lo aggiorna, lo swipe sx/dx lo mantiene
+    type: int
+    initial_value: ${VIEW_STYLE_MODERNO}
+  - id: ha_ip # IP di HA, salvato in on_client_connected (api)
+    type: std::string
+    initial_value: '""'
+
+packages:
+  # ---------------------------------------------------------------------------------------------
+  # ENTITA' HA, una riga per entita'. Swipe su/giu' sulla pagina = entita' successiva/precedente.
+  # idx: ordine nello swipe e suffisso degli id (unico per dominio). Il numero di entita' di ogni
+  # dominio e' il numero di righe: aggiungere/togliere una riga e ricompilare, nient'altro.
+  # ---------------------------------------------------------------------------------------------
+  # Valvole (pagina Termostato): climate + sensori di temperatura e umidita' della stanza
+   thermo_0: !include {file: m5_v2/thermo_entity.yaml, vars: {idx: 0, name: "Salotto",       climate: climate.salotto_valvola,       temp: sensor.salotto_th_temperatura,       hum: sensor.salotto_th_umidita}}
+   thermo_1: !include {file: m5_v2/thermo_entity.yaml, vars: {idx: 1, name: "Cucina",        climate: climate.cucina_valvola,        temp: sensor.cucina_th_temperatura,        hum: sensor.cucina_th_umidita}}
+   thermo_2: !include {file: m5_v2/thermo_entity.yaml, vars: {idx: 2, name: "Studio",        climate: climate.studio_valvola,        temp: sensor.studio_th_temperatura,        hum: sensor.studio_th_umidita}}
+   thermo_3: !include {file: m5_v2/thermo_entity.yaml, vars: {idx: 3, name: "Bimbi",         climate: climate.bimbi_valvola,         temp: sensor.bimbi_th_temperature,         hum: sensor.bimbi_th_humidity}}
+   thermo_4: !include {file: m5_v2/thermo_entity.yaml, vars: {idx: 4, name: "Matrimoniale",  climate: climate.matrimoniale_valvola,  temp: sensor.matrimoniale_th_temperatura,  hum: sensor.matrimoniale_th_umidita}}
+   thermo_5: !include {file: m5_v2/thermo_entity.yaml, vars: {idx: 5, name: "Ospiti",        climate: climate.ospiti_valvola,        temp: sensor.ospiti_th_temperatura,        hum: sensor.ospiti_th_umidita}}
+   thermo_6: !include {file: m5_v2/thermo_entity.yaml, vars: {idx: 6, name: "Bagno grande",  climate: climate.bagno_grande_valvola,  temp: sensor.bagno_grande_th_temperatura,  hum: sensor.bagno_grande_th_umidita}}
+   thermo_7: !include {file: m5_v2/thermo_entity.yaml, vars: {idx: 7, name: "Bagno piccolo", climate: climate.bagno_piccolo_valvola, temp: sensor.bagno_piccolo_th_temperatura, hum: sensor.bagno_piccolo_th_umidita}}
+  # Luci RGBW (pagine Luci RGBW e HWB, selezione condivisa)
+   light_0: !include {file: m5_v2/light_entity.yaml, vars: {idx: 0, name: "Salotto", light: light.salotto_led}}
+   light_1: !include {file: m5_v2/light_entity.yaml, vars: {idx: 1, name: "Bimbi",   light: light.bimbi_led}}
+  # Player musicali (pagina Musica e musica dei tag NFC)
+   music_0: !include {file: m5_v2/music_entity.yaml, vars: {idx: 0, name: "Cucina", player: media_player.cucina_musica}}
+   music_1: !include {file: m5_v2/music_entity.yaml, vars: {idx: 1, name: "Bimbi",  player: media_player.bimbi_musica}}
+  # ---------------------------------------------------------------------------------------------
+
+   nav: !include m5_v2/nav.yaml
+   clock: !include m5_v2/clock_page.yaml
+   thermo: !include m5_v2/thermo_page.yaml
+   light_common: !include m5_v2/light_common.yaml
+   light_rgbw: !include m5_v2/light_rgbw_page.yaml
+   light_hwb: !include m5_v2/light_hwb_page.yaml
+   music: !include m5_v2/music_page.yaml
+   settings: !include m5_v2/settings.yaml
+   tag: !include m5_v2/tag_page.yaml
+   screensaver: !include m5_v2/screensaver.yaml
+
+
+sensor:
+  - platform: rotary_encoder
+    id: encoder
+    pin_a: GPIO40
+    pin_b: GPIO41
+    # Logica per aumentare/diminuire la luminosità al ruotare dell'encoder
+    # Rotazione Oraria: Aumenta la luminosità
+    on_clockwise:
+      then:
+        - if:
+            condition: lvgl.is_paused # salvaschermo attivo: questo input sveglia soltanto
+            then:
+              - lvgl.resume:
+            else:
+              - lambda: |-
+                  lv_display_trigger_activity(nullptr); // encoder/ghiera non sono input LVGL: azzera a mano il timer del salvaschermo
+                  switch (id(current_page_index)) {
+                  // case ${PAGE_CLOCK_ID}: // nessuna azione sulla rotazione, per design
+                  case ${PAGE_LIGHT_RGBW_ID}:
+                    id(rgbw_on_clockwise).execute();
+                    break;
+                  case ${PAGE_LIGHT_HWB_ID}:
+                    id(hwb_on_clockwise).execute();
+                    break;
+                  case ${PAGE_THERMO_ID}:
+                    id(thermo_on_rotation).execute();
+                    break;
+                  case ${PAGE_MUSIC_ID}:
+                    id(music_on_clockwise).execute();
+                    break;
+                  case ${PAGE_SETTINGS_ID}:
+                    id(settings_backlight_delta).execute(1);
+                    break;
+                  }
+
+    on_anticlockwise:
+      then:
+        - if:
+            condition: lvgl.is_paused # salvaschermo attivo: questo input sveglia soltanto
+            then:
+              - lvgl.resume:
+            else:
+              - lambda: |-
+                  lv_display_trigger_activity(nullptr); // encoder/ghiera non sono input LVGL: azzera a mano il timer del salvaschermo
+                  switch (id(current_page_index)) {
+                  // case ${PAGE_CLOCK_ID}: // nessuna azione sulla rotazione, per design
+                  case ${PAGE_LIGHT_RGBW_ID}:
+                    id(rgbw_on_anticlockwise).execute();
+                    break;
+                  case ${PAGE_LIGHT_HWB_ID}:
+                    id(hwb_on_anticlockwise).execute();
+                    break;
+                  case ${PAGE_THERMO_ID}:
+                    id(thermo_on_rotation).execute();
+                    break;
+                  case ${PAGE_MUSIC_ID}:
+                    id(music_on_anticlockwise).execute();
+                    break;
+                  case ${PAGE_SETTINGS_ID}:
+                    id(settings_backlight_delta).execute(-1);
+                    break;
+                  }
+
+binary_sensor:
+  - platform: gpio
+    name: Rotary Button
+    id: front_button
+    pin:
+      number: GPIO42
+      inverted: true
+    on_press: # tic a STYLE_PRESS_MIN se la ghiera e' ancora premuta: si puo' rilasciare per cambiare stile
+      - script.execute: knob_hold_feedback
+    on_release:
+      - script.stop: knob_hold_feedback
+    on_multi_click:
+      - timing: # tenuta 3-5 s e rilasciata: stile di vista successivo (Analog/14SEG/Moderno/Face, rispetta i flag di Settings)
+          - ON for ${STYLE_PRESS_MIN} to ${BACKLIGHT_RESCUE_PRESS}
+          - OFF for at least 50ms
+        then:
+          - if:
+              condition: lvgl.is_paused # salvaschermo attivo: questo input sveglia soltanto
+              then:
+                - lvgl.resume:
+              else:
+                - lambda: 'lv_display_trigger_activity(nullptr);'
+                - script.execute: view_style_next
+      - timing: # ancora di salvezza: tenuta >= 5 s in qualunque pagina -> luminosita' a BACKLIGHT_RESCUE, anche da spento/salvaschermo
+          - ON for at least ${BACKLIGHT_RESCUE_PRESS}
+        then:
+          - if:
+              condition: lvgl.is_paused
+              then:
+                - lvgl.resume:
+          - lambda: 'lv_display_trigger_activity(nullptr);'
+          - light.turn_on:
+              id: backlight
+              brightness: ${BACKLIGHT_RESCUE}
+          - rtttl.play: "rescue:d=2,o=6,b=180:e" # beep lungo (~0,7 s): luminosita' di emergenza, si puo' lasciare la ghiera
+    on_click:
+      then:
+        - if:
+            condition: lvgl.is_paused # salvaschermo attivo: questo input sveglia soltanto
+            then:
+              - lvgl.resume:
+            else:
+              - lambda: |-
+                  lv_display_trigger_activity(nullptr); // encoder/ghiera non sono input LVGL: azzera a mano il timer del salvaschermo
+                  switch (id(current_page_index)) {
+                  case ${PAGE_LIGHT_RGBW_ID}:
+                    id(rgbw_clicked).execute();
+                    break;
+                  case ${PAGE_LIGHT_HWB_ID}: // riusa rgbw_clicked: e' solo light.toggle sull'entita', nulla di RGBW-specifico
+                    id(rgbw_clicked).execute();
+                    break;
+                  case ${PAGE_THERMO_ID}:
+                    id(thermo_mode_next).execute();
+                    break;
+                  case ${PAGE_CLOCK_ID}:
+                    id(toggle_seconds).execute();
+                    break;
+                  case ${PAGE_MUSIC_ID}:
+                    id(music_play_pause).execute();
+                    break;
+                  }

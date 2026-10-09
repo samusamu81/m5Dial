@@ -1,0 +1,12 @@
+# Fragment condiviso: swipe orizzontale "avanti". Se nessuno stile di vista e'
+# attivo (tutti e 4 i flag spenti da Settings), qualunque pagina di contenuto
+# forza il passaggio a Settings invece di avanzare; su Settings stesso e'
+# un no-op idempotente (resta dov'e').
+- if:
+    condition:
+      lambda: |-
+        return id(view_flag_analog) || id(view_flag_seg14) || id(view_flag_moderno) || id(view_flag_face);
+    then:
+      - lvgl.page.next:
+    else:
+      - lvgl.page.show: page_settings

@@ -1,0 +1,72 @@
+# Navigazione v2, parti comuni a tutte le pagine:
+# - entity_toast: nome dell'entita' mostrato per qualche istante (cambio con swipe su/giu' o ingresso in pagina)
+# - view_style_next: stile di vista successivo (ghiera tenuta 3-5 s), smistato sullo script della pagina corrente
+
+esphome:
+  includes:
+    - m5_v2/entities.h
+
+script:
+  - id: entity_toast
+    mode: restart # un nuovo nome sostituisce subito quello in corso
+    parameters:
+      name: string
+    then:
+      - lvgl.label.update:
+          id: lbl_entity_toast
+          text: !lambda 'return name;'
+      - lvgl.widget.show: lbl_entity_toast
+      - delay: ${ENTITY_TOAST_TIME}
+      - lvgl.widget.hide: lbl_entity_toast
+
+  - id: knob_hold_feedback # ghiera tenuta: tic quando si entra nella finestra 3-5 s del cambio stile
+    mode: restart
+    then:
+      - delay: ${STYLE_PRESS_MIN}
+      - if:
+          condition:
+            binary_sensor.is_on: front_button
+          then:
+            - rtttl.play: "tick:d=16,o=6,b=200:c" # beep corto (~75 ms): rilasciando ora cambia lo stile
+
+  - id: view_style_next # stesso effetto del vecchio swipe su/giu' della v1
+    then:
+      - lambda: |-
+          ESP_LOGI("nav", "cambio stile: pagina %d, stile %d", id(current_page_index), id(view_style));
+          switch (id(current_page_index)) {
+          case ${PAGE_CLOCK_ID}:      id(clock_cycle_next).execute(); break;
+          case ${PAGE_THERMO_ID}:     id(thermo_cycle_next).execute(); break;
+          case ${PAGE_LIGHT_RGBW_ID}: id(light_rgbw_cycle_next).execute(); break;
+          case ${PAGE_LIGHT_HWB_ID}:  id(light_hwb_cycle_next).execute(); break;
+          case ${PAGE_MUSIC_ID}:      id(music_cycle_next).execute(); break;
+          }
+      - lambda: 'ESP_LOGI("nav", "stile ora %d", id(view_style));'
+
+lvgl:
+  top_layer: # sopra tutte le pagine: un solo avviso condiviso
+    widgets:
+      - label:
+          id: lbl_entity_toast
+          hidden: true
+          align: TOP_MID
+          y: 40 # a 80px dal centro la corda del display e' ~180px: c'e' posto per "Bagno piccolo"
+          pad_left: 10
+          pad_right: 10
+          pad_top: 4
+          pad_bottom: 4
+          radius: 8
+          bg_color: 0x000000
+          bg_opa: 80%
+          border_width: 1
+          border_color: 0x808080
+          text_color: 0xFFFFFF
+          text_font: font_entity_toast
+          clickable: false
+          text: ""
+
+font:
+  - file: "gfonts://Roboto@bold"
+    id: font_entity_toast
+    size: 20
+    bpp: 4
+    glyphsets: [GF_Latin_Core] # nomi con lettere accentate

@@ -1,0 +1,147 @@
+globals:
+  - id: seconds_visible
+    type: bool
+    initial_value: 'true'
+
+font:
+  - file: "./fonts/DSEG14Classic-Regular.ttf" # font stile LCD 14 segmenti (sostituisce DSEG7)
+    id: font_clock_seg14
+    size: 40
+    bpp: 4
+    glyphs: "0123456789:"
+
+time:
+  - platform: homeassistant
+    id: time_comp
+    on_time_sync:
+      - script.execute: time_update
+    on_time:
+      - minutes: '*'
+        seconds: 0
+        then:
+          - script.execute: time_update
+
+interval:
+  - interval: 1s
+    then:
+      - lvgl.indicator.update:
+          id: second_hand
+          value: !lambda |-
+            return id(time_comp).now().second;
+      - lvgl.arc.update:
+          id: arc_outer_sec
+          value: !lambda |-
+            return id(time_comp).now().second;
+      - lvgl.label.update:
+          id: time_label_seg14
+          text: !lambda |-
+            auto now = id(time_comp).now();
+            char buf[64];
+            if (id(seconds_visible)) {
+              snprintf(buf, sizeof(buf), "#ff0000 %02d##888888 :##22c55e %02d##888888 :##3b82f6 %02d#",
+                       now.hour, now.minute, now.second);
+            } else {
+              // niente ":SS": la label si ricentra da sola (align CENTER, larghezza auto)
+              snprintf(buf, sizeof(buf), "#ff0000 %02d##888888 :##22c55e %02d#",
+                       now.hour, now.minute);
+            }
+            return buf;
+
+script:
+  - id: clock_cycle_next
+    then:
+      - lambda: |-
+          int n = id(view_style);
+          for (int i = 0; i < 4; i++) {
+            n = n + 1;
+            if (n > ${VIEW_STYLE_FACE}) n = ${VIEW_STYLE_ANALOG};
+            bool enabled = (n == ${VIEW_STYLE_ANALOG} && id(view_flag_analog)) ||
+                           (n == ${VIEW_STYLE_SEG14} && id(view_flag_seg14)) ||
+                           (n == ${VIEW_STYLE_MODERNO} && id(view_flag_moderno)) ||
+                           (n == ${VIEW_STYLE_FACE} && id(view_flag_face));
+            if (enabled) break;
+          }
+          id(view_style) = n;
+      - script.execute: clock_apply_view_style
+  - id: clock_apply_view_style # separato da clock_cycle_next per poter essere richiamato anche al boot/page-load (vedi on_load in clock_page.yaml)
+    then:
+      - lvgl.widget.update:
+          id: clock_view_analog
+          hidden: !lambda 'return id(view_style) != ${VIEW_STYLE_ANALOG};'
+      - lvgl.widget.update:
+          id: clock_view_seg14
+          hidden: !lambda 'return id(view_style) != ${VIEW_STYLE_SEG14};'
+      - lvgl.widget.update:
+          id: clock_view_moderno
+          hidden: !lambda 'return id(view_style) != ${VIEW_STYLE_MODERNO};'
+      - lvgl.widget.update:
+          id: clock_view_face
+          hidden: !lambda 'return id(view_style) != ${VIEW_STYLE_FACE};'
+      - lvgl.widget.update: # shared_date_label/shared_day_label: stessa posizione su analog e moderno, nascosti altrove
+          id: shared_day_label
+          hidden: !lambda 'return !(id(view_style) == ${VIEW_STYLE_ANALOG} || id(view_style) == ${VIEW_STYLE_MODERNO});'
+      - lvgl.widget.update:
+          id: shared_date_label
+          hidden: !lambda 'return !(id(view_style) == ${VIEW_STYLE_ANALOG} || id(view_style) == ${VIEW_STYLE_MODERNO});'
+      - script.execute: time_update # aggiorna subito la vista appena mostrata, senza aspettare il prossimo minuto
+  - id: toggle_seconds
+    then:
+      - lambda: |-
+          id(seconds_visible) = !id(seconds_visible);
+      - lvgl.widget.update:
+          id: second_hand
+          hidden: !lambda 'return !id(seconds_visible);'
+      - lvgl.widget.update:
+          id: arc_outer_sec
+          hidden: !lambda 'return !id(seconds_visible);'
+      - script.execute: time_update
+  - id: time_update
+    then:
+      - lvgl.indicator.update:
+          id: minute_hand
+          value: !lambda |-
+            return id(time_comp).now().minute;
+      - lvgl.indicator.update:
+          id: hour_hand
+          value: !lambda |-
+            auto now = id(time_comp).now();
+            return std::fmod(now.hour, 12) * 60 + now.minute;
+      - lvgl.arc.update:
+          id: arc_mid_min
+          value: !lambda |-
+            return id(time_comp).now().minute;
+      - lvgl.arc.update:
+          id: arc_inner_hour
+          value: !lambda |-
+            auto now = id(time_comp).now(); // scala 0-12: valore mai 0 (1..12) cosi' non e' mai vuoto, pieno a 12
+            int h = now.hour % 12;
+            if (h == 0) h = 12;
+            return h;
+      - lvgl.label.update: # shared_date_label/shared_day_label: usati sia da analog sia da moderno
+          id: shared_date_label
+          text: !lambda |-
+            static const char * const mon_names[] = {"JAN", "FEB", "MAR", "APR", "MAY", "JUN",
+                                                     "JUL", "AUG", "SEP", "OCT", "NOV", "DEC"};
+            static char date_buf[8];
+            auto now = id(time_comp).now();
+            snprintf(date_buf, sizeof(date_buf), "%s %2d", mon_names[now.month-1], now.day_of_month);
+            return date_buf;
+      - lvgl.label.update:
+          id: shared_day_label
+          text: !lambda |-
+            static const char * const day_names[] = {"SUN", "MON", "TUE", "WED", "THU", "FRI", "SAT"};
+            return day_names[id(time_comp).now().day_of_week - 1];
+      - lvgl.label.update: # day/date dedicati dello stile 14SEG (widget proprio, non condiviso)
+          id: date_label_seg14
+          text: !lambda |-
+            static const char * const mon_names[] = {"JAN", "FEB", "MAR", "APR", "MAY", "JUN",
+                                                     "JUL", "AUG", "SEP", "OCT", "NOV", "DEC"};
+            static char date_buf[8];
+            auto now = id(time_comp).now();
+            snprintf(date_buf, sizeof(date_buf), "%s %2d", mon_names[now.month-1], now.day_of_month);
+            return date_buf;
+      - lvgl.label.update:
+          id: day_label_seg14
+          text: !lambda |-
+            static const char * const day_names[] = {"SUN", "MON", "TUE", "WED", "THU", "FRI", "SAT"};
+            return day_names[id(time_comp).now().day_of_week - 1];

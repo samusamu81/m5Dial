@@ -1,0 +1,124 @@
+# Logica condivisa tra le pagine Luci RGBW e HWB: stato della luce selezionata (colore canonico +
+# brightness + stato on/off), unica fonte di verita' per entrambe le pagine.
+# v2: le sottoscrizioni HA sono in light_entity.yaml (una serie per luce); qui restano i globali
+# "canonici" della luce selezionata, la lista delle luci e gli script richiamati dai sensori.
+#
+# Storicamente ogni pagina aveva le sue sottoscrizioni indipendenti agli stessi entity_id/attribute,
+# che scrivevano sugli stessi globali rgbw_can_*/bright_can: due sottoscrizioni parallele allo stesso
+# dato HA, senza garanzie sull'ordine in cui i rispettivi on_value vengono eseguiti (dipende dall'ordine
+# di setup() dei componenti, non dall'ordine nel YAML) - una delle due arrivava spesso a sovrascrivere
+# con un parsing sbagliato/non aggiornato, azzerando i canali. Vedi [[esphome-lvgl-quirks]] e la sessione
+# di debug del 2026-09-20. Soluzione: un solo punto di lettura/parsing, che poi richiama esplicitamente
+# gli script di refresh di entrambe le pagine.
+
+globals:
+  - id: light_sel # indice in light_list della luce mostrata/comandata, condiviso da RGBW e HWB (swipe su/giu')
+    type: int
+    initial_value: '0'
+  - id: rgbw_can_r # valori "canonici" HA (rgbw_color dell'entita'): usati sia da RGBW (rgbw_loc_*) sia da HWB (hwb_can_wh/bl)
+    type: int
+    initial_value: '0'
+  - id: rgbw_can_g
+    type: int
+    initial_value: '0'
+  - id: rgbw_can_b
+    type: int
+    initial_value: '0'
+  - id: rgbw_can_w
+    type: int
+    initial_value: '0'
+  - id: bright_can # brightness canonica HA (0-255)
+    type: int
+    initial_value: '0'
+  - id: rgb_ha_r # attributo rgb_color di HA: "che colore sarebbe su una luce RGB" (HA fonde W nei 3 canali), usato dai pallini centrali (RGBW e HWB moderno)
+    type: int
+    initial_value: '0'
+  - id: rgb_ha_g
+    type: int
+    initial_value: '0'
+  - id: rgb_ha_b
+    type: int
+    initial_value: '0'
+
+script:
+  - id: light_on_state_change # stato on/off della luce selezionata cambiato (rgbw_light_on/hwb_light_on gia' aggiornati)
+    mode: queued
+    then:
+      - lvgl.label.update:
+          id: lbl_rgbw_state
+          text: !lambda 'return id(rgbw_light_on) ? std::string("ON") : std::string("OFF");'
+      - lvgl.label.update: # etichetta+valore R: rosso se on, grigio se off
+          id: lbl_rgbw_r_letter
+          text_color: !lambda 'return id(rgbw_light_on) ? Color(0xFF, 0x00, 0x00) : Color(0x80, 0x80, 0x80);'
+      - lvgl.label.update:
+          id: lbl_rgbw_r_val
+          text_color: !lambda 'return id(rgbw_light_on) ? Color(0xFF, 0x00, 0x00) : Color(0x80, 0x80, 0x80);'
+      - lvgl.label.update: # etichetta+valore G: verde se on, grigio se off
+          id: lbl_rgbw_g_letter
+          text_color: !lambda 'return id(rgbw_light_on) ? Color(0x22, 0xC5, 0x5E) : Color(0x80, 0x80, 0x80);'
+      - lvgl.label.update:
+          id: lbl_rgbw_g_val
+          text_color: !lambda 'return id(rgbw_light_on) ? Color(0x22, 0xC5, 0x5E) : Color(0x80, 0x80, 0x80);'
+      - lvgl.label.update: # etichetta+valore B: blu se on, grigio se off
+          id: lbl_rgbw_b_letter
+          text_color: !lambda 'return id(rgbw_light_on) ? Color(0x3B, 0x82, 0xF6) : Color(0x80, 0x80, 0x80);'
+      - lvgl.label.update:
+          id: lbl_rgbw_b_val
+          text_color: !lambda 'return id(rgbw_light_on) ? Color(0x3B, 0x82, 0xF6) : Color(0x80, 0x80, 0x80);'
+      - lvgl.label.update: # etichetta+valore W: bianco se on, grigio se off
+          id: lbl_rgbw_w_letter
+          text_color: !lambda 'return id(rgbw_light_on) ? Color(0xFF, 0xFF, 0xFF) : Color(0x80, 0x80, 0x80);'
+      - lvgl.label.update:
+          id: lbl_rgbw_w_val
+          text_color: !lambda 'return id(rgbw_light_on) ? Color(0xFF, 0xFF, 0xFF) : Color(0x80, 0x80, 0x80);'
+      - lvgl.label.update: # view analog: stesse 4 lettere centrali, colore proprio se on, grigio se off
+          id: lbl_rgbw_analog_r
+          text_color: !lambda 'return id(rgbw_light_on) ? Color(0xFF, 0x00, 0x00) : Color(0x80, 0x80, 0x80);'
+      - lvgl.label.update:
+          id: lbl_rgbw_analog_g
+          text_color: !lambda 'return id(rgbw_light_on) ? Color(0x22, 0xC5, 0x5E) : Color(0x80, 0x80, 0x80);'
+      - lvgl.label.update:
+          id: lbl_rgbw_analog_b
+          text_color: !lambda 'return id(rgbw_light_on) ? Color(0x3B, 0x82, 0xF6) : Color(0x80, 0x80, 0x80);'
+      - lvgl.label.update:
+          id: lbl_rgbw_analog_w
+          text_color: !lambda 'return id(rgbw_light_on) ? Color(0xFF, 0xFF, 0xFF) : Color(0x80, 0x80, 0x80);'
+      - lvgl.widget.update: # rgbw_switch_dot: raggio 17, 45°(12,12) se off, 135°(-12,12) se on
+          id: rgbw_switch_dot
+          x: !lambda 'return id(rgbw_light_on) ? -12 : 12;'
+          y: 12
+      - script.execute: rgbw_refresh_view
+      - script.execute: hwb_refresh_view
+
+  - id: light_on_color_change # rgbw_color o brightness della luce selezionata cambiati (rgbw_can_*/bright_can gia' aggiornati)
+    mode: queued
+    then:
+      - script.execute: rgbw_update_loc_from_can
+      - script.execute: rgbw_refresh_view
+      - script.execute: hwb_compute_wh_bl
+      - script.execute: hwb_refresh_view
+
+  - id: light_select_apply # luce selezionata cambiata: carica l'ultimo stato noto nei globali e ridisegna tutto
+    mode: restart
+    then:
+      - lambda: |-
+          LightEntry *e = entity_sel(light_list, id(light_sel));
+          if (e == nullptr) return;
+          id(rgbw_light_on) = e->on; id(hwb_light_on) = e->on;
+          id(rgbw_can_r) = e->can_r; id(rgbw_can_g) = e->can_g; id(rgbw_can_b) = e->can_b; id(rgbw_can_w) = e->can_w;
+          id(bright_can) = e->bright;
+          id(rgb_ha_r) = e->rgb_r; id(rgb_ha_g) = e->rgb_g; id(rgb_ha_b) = e->rgb_b;
+          id(hwb_can_h) = e->hue;
+      - script.execute: light_on_state_change
+      - script.execute: light_on_color_change
+
+  - id: light_entity_step # swipe su/giu' su RGBW o HWB: luce successiva (+1) / precedente (-1)
+    parameters:
+      dir: int
+    then:
+      - lambda: |-
+          int n = light_list.size();
+          if (n <= 1) return;
+          id(light_sel) = entity_step(id(light_sel), n, dir);
+          id(light_select_apply).execute();
+          id(entity_toast).execute(light_list[id(light_sel)].name);

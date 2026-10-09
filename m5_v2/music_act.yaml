@@ -1,0 +1,380 @@
+http_request: # serve a online_image per scaricare la copertina da Music Assistant
+  timeout: 5s
+
+image:
+  - platform: file
+    file: "./images/music_cover_placeholder.png" # 100x100 grigio scuro, in flash: sorgente del widget finche' non arriva la copertina
+    id: music_cover_placeholder
+    type: RGB565
+  - platform: online_image
+    id: music_cover
+    url: "http://homeassistant.local:8123/local/m5dial_cover.bmp" # segnaposto (campo obbligatorio, mai usato): l'URL vero, con l'IP di HA e ?v=<versione>, lo imposta l'azione API cover_ready (my_conf.yaml)
+    format: BMP # convertita da HA (/config/scripts/m5dial_cover_bmp.py): il decoder JPEG non trova ~20KB contigui senza PSRAM
+    type: RGB565 # 100x100: 20KB, nel buffer statico cover_buf (my_conf.yaml)
+    buffer_size: 4096 # il decoder BMP lavora a flusso (bmp_decoder.cpp): non serve il file intero (30KB) in RAM
+    update_interval: never
+    on_download_finished:
+      - lvgl.image.update: # il widget punta all'immagine scaricata SOLO ora (puntarla da boot, a vuoto, faceva crashare: vedi memoria)
+          id: music_cover_img
+          src: music_cover
+    on_error:
+      - lvgl.image.update:
+          id: music_cover_img
+          src: music_cover_placeholder
+
+font:
+  - file: "./fonts/DSEG14Classic-Regular.ttf" # vista Seg14: tempo trascorso mm:ss
+    id: font_music_seg14_big
+    size: 36
+    bpp: 4
+    glyphs: "0123456789:-"
+  - file: "./fonts/DSEG14Classic-Regular.ttf" # vista Seg14: titolo e tasti. Solo i caratteri che DSEG14 disegna (verificato): il titolo viene ripulito da music_title
+    id: font_music_seg14
+    size: 20
+    bpp: 4
+    glyphs: ' 0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZ:-.,''?/<>|&()+*=_"%@'
+  - file: "gfonts://Roboto Mono@bold" # cifre del contatore a tamburi (vista Analog): monospazio, cifre tutte larghe uguali
+    id: font_music_counter
+    size: 16 # +2 (era 14)
+    bpp: 4
+    glyphs: "0123456789"
+
+globals:
+  - id: music_sel # indice in music_list del player mostrato/comandato (swipe su/giu')
+    type: int
+    initial_value: '0'
+  - id: music_elapsed_s # secondi trascorsi del brano, ricalcolati da music_counter_tick (posizione HA + tempo da media_position_updated_at)
+    type: float
+    initial_value: '0.0'
+  - id: music_cnt_offset # sottratto al tempo trascorso: impostato dal tastino reset, azzerato al cambio brano
+    type: float
+    initial_value: '0.0'
+  - id: vu_level_l # livelli attuali dei VU decorativi (0-10 led accesi), -1 = da ridisegnare
+    type: int
+    initial_value: '-1'
+  - id: vu_level_r
+    type: int
+    initial_value: '-1'
+  - id: music_vol # volume locale 0.0-1.0: aggiornato da HA (volume_level) e dall'encoder (+/-0.04, clip 0-1)
+    type: float
+    initial_value: '0.0'
+
+script:
+  - id: music_cycle_next
+    then:
+      - lambda: |-
+          int n = id(view_style);
+          for (int i = 0; i < 4; i++) {
+            n = n + 1;
+            if (n > ${VIEW_STYLE_FACE}) n = ${VIEW_STYLE_ANALOG};
+            bool enabled = (n == ${VIEW_STYLE_ANALOG} && id(view_flag_analog)) ||
+                           (n == ${VIEW_STYLE_SEG14} && id(view_flag_seg14)) ||
+                           (n == ${VIEW_STYLE_MODERNO} && id(view_flag_moderno)) ||
+                           (n == ${VIEW_STYLE_FACE} && id(view_flag_face));
+            if (enabled) break;
+          }
+          id(view_style) = n;
+      - script.execute: music_apply_view_style
+  - id: music_apply_view_style # separato da music_cycle_next per poter essere richiamato anche al boot/page-load (vedi on_load in music_page.yaml)
+    then:
+      - lvgl.widget.update:
+          id: music_view_analog
+          hidden: !lambda 'return id(view_style) != ${VIEW_STYLE_ANALOG};'
+      - lvgl.widget.update:
+          id: music_view_seg14
+          hidden: !lambda 'return id(view_style) != ${VIEW_STYLE_SEG14};'
+      - lvgl.widget.update:
+          id: music_view_moderno
+          hidden: !lambda 'return id(view_style) != ${VIEW_STYLE_MODERNO};'
+      - lvgl.widget.update:
+          id: music_view_face
+          hidden: !lambda 'return id(view_style) != ${VIEW_STYLE_FACE};'
+  - id: music_on_clockwise
+    mode: queued
+    then:
+      - script.execute:
+          id: music_change_volume
+          delta: 0.04
+      - script.wait: music_change_volume
+
+  - id: music_on_anticlockwise
+    mode: queued
+    then:
+      - script.execute:
+          id: music_change_volume
+          delta: -0.04
+      - script.wait: music_change_volume
+
+  - id: music_change_volume # +/-0.04 sul volume locale, clip 0-1, scrive su HA (volume_set) e aggiorna subito le viste
+    parameters:
+      delta: float
+    then:
+      - lambda: |-
+          float v = id(music_vol) + delta;
+          if (v < 0.0f) v = 0.0f;
+          if (v > 1.0f) v = 1.0f;
+          id(music_vol) = roundf(v * 100.0f) / 100.0f; // niente derive da somme float ripetute
+      - homeassistant.action:
+          action: media_player.volume_set
+          data:
+            entity_id: !lambda 'return music_cur(music_list, id(music_sel)).entity;'
+            volume_level: !lambda 'return id(music_vol);'
+      - script.execute: music_refresh_view
+
+  - id: music_counter_reset # tastino accanto al contatore: riparte da 000 da qui in avanti
+    then:
+      - lambda: 'id(music_cnt_offset) = id(music_elapsed_s);'
+
+  - id: music_refresh_view # aggiorna arco (Moderno) e ago (Analog) dal volume locale
+    then:
+      - lvgl.arc.update:
+          id: volume_arc
+          value: !lambda 'return (int) roundf(id(music_vol) * 100.0f);'
+      - lvgl.indicator.update:
+          id: music_volume_needle
+          value: !lambda 'return (int) roundf(id(music_vol) * 100.0f);'
+
+  - id: music_prev_track
+    mode: queued
+    then:
+      - homeassistant.action:
+          action: media_player.media_previous_track
+          data:
+            entity_id: !lambda 'return music_cur(music_list, id(music_sel)).entity;'
+
+  - id: music_next_track
+    mode: queued
+    then:
+      - homeassistant.action:
+          action: media_player.media_next_track
+          data:
+            entity_id: !lambda 'return music_cur(music_list, id(music_sel)).entity;'
+
+  - id: music_play_pause # richiamato sia dal pulsante a schermo sia dal click della ghiera (vedi m5Dial_v2.yaml)
+    mode: queued
+    then:
+      - homeassistant.action:
+          action: media_player.media_play_pause
+          data:
+            entity_id: !lambda 'return music_cur(music_list, id(music_sel)).entity;'
+
+  - id: music_show_title # titolo del player selezionato: Seg14 maiuscolo (accenti -> lettere base, caratteri non disegnabili da DSEG14 -> spazio), Moderno maiuscole/minuscole
+    mode: restart
+    then:
+      - lvgl.label.update:
+          id: lbl_music_seg14_title
+          text: !lambda |-
+            const std::string &x = music_cur(music_list, id(music_sel)).title;
+            static const char *allowed = " 0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZ:-.,'?/<>|&()+*=_\"%@";
+            std::string out;
+            for (size_t i = 0; i < x.size(); i++) {
+              unsigned char c = x[i];
+              if (c == 0xC3 && i + 1 < x.size()) { // lettere accentate latine (UTF-8 C3 xx): lettera base
+                unsigned char d = ((unsigned char) x[++i]) | 0x20; // 0x80-0x9F maiuscole -> minuscole 0xA0-0xBF
+                char b = ' ';
+                if (d >= 0xA0 && d <= 0xA5) b = 'A';
+                else if (d == 0xA7) b = 'C';
+                else if (d >= 0xA8 && d <= 0xAB) b = 'E';
+                else if (d >= 0xAC && d <= 0xAF) b = 'I';
+                else if (d == 0xB1) b = 'N';
+                else if (d >= 0xB2 && d <= 0xB6) b = 'O';
+                else if (d >= 0xB9 && d <= 0xBC) b = 'U';
+                out += b;
+                continue;
+              }
+              if (c >= 0x80) { // altri caratteri multibyte: un solo spazio, salta i byte di continuazione
+                while (i + 1 < x.size() && (((unsigned char) x[i + 1]) & 0xC0) == 0x80) i++;
+                out += ' ';
+                continue;
+              }
+              char u = toupper(c);
+              out += strchr(allowed, u) ? u : ' ';
+            }
+            if (out.empty()) out = "---";
+            out += "          "; // 10 spazi di pausa prima che il titolo a scorrimento ricominci
+            return out;
+      - lvgl.label.update: # vista Moderno: montserrat non ha le lettere accentate -> lettera base
+          id: lbl_music_moderno_title
+          text: !lambda |-
+            const std::string &x = music_cur(music_list, id(music_sel)).title;
+            std::string out;
+            for (size_t i = 0; i < x.size(); i++) {
+              unsigned char c = x[i];
+              if (c == 0xC3 && i + 1 < x.size()) {
+                unsigned char raw = (unsigned char) x[++i];
+                bool upper = raw < 0xA0;
+                unsigned char d = raw | 0x20;
+                char b = ' ';
+                if (d >= 0xA0 && d <= 0xA5) b = 'a';
+                else if (d == 0xA7) b = 'c';
+                else if (d >= 0xA8 && d <= 0xAB) b = 'e';
+                else if (d >= 0xAC && d <= 0xAF) b = 'i';
+                else if (d == 0xB1) b = 'n';
+                else if (d >= 0xB2 && d <= 0xB6) b = 'o';
+                else if (d >= 0xB9 && d <= 0xBC) b = 'u';
+                out += (upper && b != ' ') ? (char) toupper(b) : b;
+                continue;
+              }
+              if (c >= 0x80) {
+                while (i + 1 < x.size() && (((unsigned char) x[i + 1]) & 0xC0) == 0x80) i++;
+                out += ' ';
+                continue;
+              }
+              out += (char) c;
+            }
+            return out;
+
+  - id: music_show_state # spia del pulsante play/pause in vista Analog
+    mode: restart
+    then:
+      - lvgl.widget.update:
+          id: music_play_led
+          bg_color: !lambda 'return music_cur(music_list, id(music_sel)).state == "playing" ? Color(0x39, 0xFF, 0x14) : Color(0x80, 0x80, 0x80);' # verde fluo / grigio
+
+  - id: music_entity_step # swipe su/giu': player successivo (+1) / precedente (-1)
+    parameters:
+      dir: int
+    then:
+      - lambda: |-
+          int n = music_list.size();
+          if (n <= 1) return;
+          id(music_sel) = entity_step(id(music_sel), n, dir);
+          id(music_select_apply).execute();
+          id(entity_toast).execute(music_list[id(music_sel)].name);
+
+  - id: music_select_apply # ridisegna la pagina dal player selezionato e avvisa HA (sensore "Media player": tag NFC e copertina)
+    mode: restart
+    then:
+      - lambda: |-
+          auto &e = music_cur(music_list, id(music_sel));
+          if (!std::isnan(e.volume)) id(music_vol) = e.volume;
+          id(music_cnt_offset) = 0;
+      - script.execute: music_refresh_view
+      - script.execute: music_show_title
+      - script.execute: music_show_state
+      - lvgl.image.update: # la copertina era quella dell'altro player: segnaposto finche' HA non manda la nuova
+          id: music_cover_img
+          src: music_cover_placeholder
+      - component.update: music_player_entity
+      - if:
+          condition: api.connected
+          then:
+            - homeassistant.action: # stessa richiesta di on_client_connected: HA rigenera la copertina del player selezionato
+                action: automation.trigger
+                data:
+                  entity_id: automation.m5dial_copertina_player_in_bmp
+
+interval:
+  - interval: 80ms # VU meter decorativo (vista Analog): attacco rapido, rilascio lento, solo se la vista e' visibile e il player e' in play
+    then:
+      - lambda: |-
+          static lv_obj_t *leds_l[10] = {id(vu_l_0), id(vu_l_1), id(vu_l_2), id(vu_l_3), id(vu_l_4), id(vu_l_5), id(vu_l_6), id(vu_l_7), id(vu_l_8), id(vu_l_9)};
+          static lv_obj_t *leds_r[10] = {id(vu_r_0), id(vu_r_1), id(vu_r_2), id(vu_r_3), id(vu_r_4), id(vu_r_5), id(vu_r_6), id(vu_r_7), id(vu_r_8), id(vu_r_9)};
+          static const uint32_t on_col[10] = {0x22C55E, 0x22C55E, 0x22C55E, 0x22C55E, 0x22C55E, 0x22C55E, 0x22C55E, 0xFACC15, 0xFACC15, 0xFF0000};
+          bool visible = id(current_page_index) == ${PAGE_MUSIC_ID} && id(view_style) == ${VIEW_STYLE_ANALOG};
+          if (!visible) { id(vu_level_l) = -1; id(vu_level_r) = -1; return; } // al rientro ridisegna tutto
+          bool playing = music_cur(music_list, id(music_sel)).state == "playing";
+          int *levels[2] = {&id(vu_level_l), &id(vu_level_r)};
+          lv_obj_t **rows[2] = {leds_l, leds_r};
+          for (int ch = 0; ch < 2; ch++) {
+            int old = *levels[ch];
+            int lvl = 0;
+            if (playing) {
+              int target = 3 + (int) (random_uint32() % 7); // 3..9, il rosso (10) solo sui picchi
+              if (random_uint32() % 12 == 0) target = 10;
+              int cur = old < 0 ? 0 : old;
+              lvl = target > cur ? target : cur - 1; // attacco immediato, rilascio di 1 led per tick
+              if (lvl < 0) lvl = 0;
+            }
+            if (lvl == old) continue;
+            for (int i = 0; i < 10; i++) {
+              bool was_on = old >= 0 && i < old;
+              bool is_on = i < lvl;
+              if (old >= 0 && was_on == is_on) continue; // tocca solo i led che cambiano
+              lv_obj_set_style_bg_color(rows[ch][i], lv_color_hex(is_on ? on_col[i] : 0x202020), LV_PART_MAIN);
+            }
+            *levels[ch] = lvl;
+          }
+
+  - interval: 250ms # contatore a tamburi (vista Analog): tempo trascorso / 5 s -> 3 cifre, ogni cifra che cambia "rotola" con un'animazione
+    then:
+      - lambda: |-
+          // --- tempo trascorso: posizione HA + secondi passati da media_position_updated_at (solo se in play) ---
+          auto &cur = music_cur(music_list, id(music_sel));
+          float pos = cur.pos;
+          if (isnan(pos)) pos = 0;
+          float elapsed = pos;
+          auto now = id(time_comp).now();
+          int Y, Mo, D, h, mi; float sec;
+          if (cur.state == "playing" && now.is_valid() &&
+              sscanf(cur.pos_upd.c_str(), "%d-%d-%d%*c%d:%d:%f", &Y, &Mo, &D, &h, &mi, &sec) == 6) {
+            // %*c: l'API ESPHome riceve str(datetime) "2026-10-02 16:41:32.77+00:00" (spazio), non l'ISO con 'T' della REST API
+            // giorni dal 1970-01-01 (algoritmo days_from_civil), l'istante HA e' sempre UTC
+            int y = Y - (Mo <= 2);
+            int era = (y >= 0 ? y : y - 399) / 400;
+            int yoe = y - era * 400;
+            int doy = (153 * (Mo + (Mo > 2 ? -3 : 9)) + 2) / 5 + D - 1;
+            int doe = yoe * 365 + yoe / 4 - yoe / 100 + doy;
+            double upd = (double) (era * 146097 + doe - 719468) * 86400.0 + h * 3600 + mi * 60 + sec;
+            double dt = (double) now.timestamp - upd;
+            if (dt > 0 && dt < 24 * 3600) elapsed = pos + (float) dt;
+          }
+          id(music_elapsed_s) = elapsed;
+
+          // --- cifre: solo se la vista Analog della pagina musica e' visibile ---
+          static lv_obj_t *strips[3] = {id(music_cnt_strip_0), id(music_cnt_strip_1), id(music_cnt_strip_2)};
+          static lv_obj_t *drums[3] = {id(music_cnt_drum_0), id(music_cnt_drum_1), id(music_cnt_drum_2)};
+          static int shown[3] = {-1, -1, -1}; // -1 = da posizionare senza animazione
+          static int step = 0; // altezza di una riga della striscia, in px
+          bool visible = id(current_page_index) == ${PAGE_MUSIC_ID} && id(view_style) == ${VIEW_STYLE_ANALOG};
+          if (!visible) { shown[0] = shown[1] = shown[2] = -1; return; }
+          if (step == 0) {
+            lv_obj_update_layout(strips[0]);
+            step = lv_obj_get_height(strips[0]) / 11;
+            for (int i = 0; i < 3; i++) lv_obj_set_height(drums[i], step); // finestra alta esattamente una cifra
+          }
+          int v = (int) floorf((elapsed - id(music_cnt_offset)) / 5.0f); // sale di 1 ogni 5 secondi (meno "ansiogeno" del secondo)
+          v = ((v % 1000) + 1000) % 1000;
+          int digits[3] = {v / 100, (v / 10) % 10, v % 10};
+          for (int i = 0; i < 3; i++) {
+            int from = shown[i], to = digits[i];
+            if (from == to) continue;
+            lv_obj_t *lbl = strips[i];
+            lv_anim_delete(lbl, nullptr); // un rotolamento ancora in corso viene interrotto
+            if (from < 0) { lv_obj_set_y(lbl, -to * step); shown[i] = to; continue; }
+            lv_anim_t a;
+            lv_anim_init(&a);
+            lv_anim_set_var(&a, lbl);
+            lv_anim_set_exec_cb(&a, [](void *o, int32_t y) { lv_obj_set_y((lv_obj_t *) o, y); });
+            lv_anim_set_duration(&a, 700); // rotolamento lento (era 220ms)
+            lv_anim_set_path_cb(&a, lv_anim_path_ease_out);
+            if (from == 9 && to == 0) {
+              // giro in avanti: scorre fino allo "0" ripetuto in fondo alla striscia, poi torna in cima senza che si veda
+              lv_anim_set_values(&a, -9 * step, -10 * step);
+              lv_anim_set_completed_cb(&a, [](lv_anim_t *an) { lv_obj_set_y((lv_obj_t *) an->var, 0); });
+            } else {
+              lv_anim_set_values(&a, lv_obj_get_y(lbl), -to * step);
+            }
+            lv_anim_start(&a);
+            shown[i] = to;
+          }
+
+  - interval: 1s # avanzamento del brano (vista Moderno): tempo trascorso (calcolato dal contatore, music_elapsed_s) / durata, in per mille
+    then:
+      - lvgl.label.update: # vista Seg14: tempo trascorso mm:ss
+          id: lbl_music_seg14_time
+          text: !lambda |-
+            int t = (int) id(music_elapsed_s);
+            if (t < 0) t = 0;
+            char b[12];
+            snprintf(b, sizeof(b), "%02d:%02d", (t / 60) % 100, t % 60);
+            return std::string(b);
+      - lvgl.arc.update:
+          id: music_progress_arc
+          value: !lambda |-
+            float d = music_cur(music_list, id(music_sel)).duration;
+            if (isnan(d) || d <= 0) return 0;
+            float p = id(music_elapsed_s) / d;
+            if (p < 0) p = 0;
+            if (p > 1) p = 1;
+            return (int) roundf(p * 1000.0f);

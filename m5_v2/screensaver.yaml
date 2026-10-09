@@ -1,0 +1,64 @@
+<<: !include my_const.yaml
+
+# Salvaschermo in due fasi, contro il burn-in:
+#   1) dopo screensaver_timeout_s senza input: LVGL in pausa con effetto "snow" (pixel casuali, nessuna immagine fissa)
+#   2) dopo altri power_off_delay_s: spegnimento (pin HOLD basso, hw.yaml). A batteria il dial si spegne
+#      davvero e si riaccende premendo la ghiera; a USB resta acceso con schermo spento e snow fermo.
+# Risveglio: tocco (resume_on_input, il tocco che sveglia non arriva ai widget),
+# encoder e ghiera (m5Dial_v2.yaml: il primo input sveglia soltanto), tag NFC (tag_page.yaml).
+lvgl:
+  id: lvgl_comp
+  resume_on_input: true
+  on_idle:
+    timeout: !lambda 'return (uint32_t) (id(screensaver_timeout_s).state * 1000);'
+    then:
+      - lvgl.pause:
+          show_snow: true
+  on_pause:
+    - script.execute: screen_off_later
+  on_resume:
+    - script.stop: screen_off_later
+    - switch.turn_on: power_hold # a USB lo spegnimento non ha effetto: senza questo, staccando l'USB il dial morirebbe
+    - light.turn_on:
+        id: backlight
+        transition_length: 300ms
+
+script:
+  - id: screen_off_later
+    mode: single # on_pause scatta anche alla seconda pausa (senza snow): non deve ripartire il conto
+    then:
+      - delay: !lambda 'return (uint32_t) (id(power_off_delay_s).state * 1000);'
+      - light.turn_off:
+          id: backlight
+          transition_length: 1s
+      - delay: 1s
+      - lambda: 'id(lvgl_comp)->set_paused(true, false);' # schermo spento: inutile continuare a disegnare lo snow
+      - switch.turn_off: power_hold # a batteria: spegnimento; a USB: nessun effetto
+
+# Tempi regolabili da HA (dispositivo dial, sezione Configurazione), salvati sul dial:
+# valgono anche a un avvio a batteria prima che HA si ricolleghi.
+number:
+  - platform: template
+    id: screensaver_timeout_s
+    name: "Salvaschermo dopo"
+    entity_category: config
+    icon: mdi:television-ambient-light
+    unit_of_measurement: s
+    min_value: 10
+    max_value: 600
+    step: 10
+    initial_value: 60
+    optimistic: true
+    restore_value: true
+  - platform: template
+    id: power_off_delay_s
+    name: "Spegnimento dopo lo snow"
+    entity_category: config
+    icon: mdi:power-sleep
+    unit_of_measurement: s
+    min_value: 30
+    max_value: 3600
+    step: 30
+    initial_value: 120
+    optimistic: true
+    restore_value: true

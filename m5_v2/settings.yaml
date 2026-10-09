@@ -1,0 +1,134 @@
+<<: !include my_const.yaml
+
+# Flag globali, condivisi da TUTTE le pagine di contenuto (non per-pagina):
+# decidono quali dei 4 stili di vista sono raggiungibili con lo swipe su/giu'.
+# Non persistenti: nessun restore_value, tornano sempre al valore iniziale al boot (Face spento, gli altri accesi).
+globals:
+  - id: view_flag_analog
+    type: bool
+    initial_value: 'true'
+  - id: view_flag_seg14
+    type: bool
+    initial_value: 'true'
+  - id: view_flag_moderno
+    type: bool
+    initial_value: 'true'
+  - id: view_flag_face
+    type: bool
+    initial_value: 'false' # Face spento all'avvio
+
+script:
+  - id: settings_backlight_delta # encoder su Settings: luminosita' dello schermo a passi, mai sotto BACKLIGHT_MIN (la ghiera non puo' spegnerlo)
+    parameters:
+      direction: int
+    then:
+      - light.turn_on:
+          id: backlight
+          transition_length: 0s
+          brightness: !lambda |-
+            float b = id(backlight).remote_values.get_brightness() + direction * ${BACKLIGHT_STEP};
+            return std::max(${BACKLIGHT_MIN}f, std::min(1.0f, b));
+
+lvgl:
+  pages:
+    - id: page_settings
+      bg_color: 0x0A192F
+      bg_opa: COVER
+      on_load:
+        - lambda: id(current_page_index) = ${PAGE_SETTINGS_ID};
+      on_swipe_left: !include common_swipe_next.yaml
+      on_swipe_right: !include common_swipe_previous.yaml
+      widgets:
+        - arc: # luminosita' schermo (luce backlight, hw.yaml on_state), pilotata dall'encoder; il buco in basso ospita il valore
+            id: arc_backlight
+            align: CENTER
+            width: 232
+            height: 232
+            min_value: 10 # = BACKLIGHT_MIN
+            max_value: 100
+            value: 100
+            start_angle: 135
+            end_angle: 45
+            adjustable: false
+            clickable: false # tocchi e swipe passano alla pagina e agli switch
+            bg_opa: TRANSP
+            arc_width: 8
+            arc_color: 0x1E3A5F
+            indicator:
+              arc_width: 8
+              arc_color: 0xFACC15
+        - label:
+            id: lbl_backlight
+            align: BOTTOM_MID
+            y: -12
+            text_color: 0xFACC15
+            text: "100%"
+        - label:
+            align: TOP_MID
+            y: 28 # sotto l'arco della luminosita'
+            text_color: 0xFFFFFF
+            text: "SETTINGS"
+        - label:
+            align: CENTER
+            x: -60
+            y: -55
+            text_color: 0xFFFFFF
+            text: "Analog"
+        - switch:
+            id: sw_view_analog
+            align: CENTER
+            x: 60
+            y: -55
+            state:
+              checked: true
+            on_value:
+              then:
+                - lambda: 'id(view_flag_analog) = x;'
+        - label:
+            align: CENTER
+            x: -60
+            y: -18
+            text_color: 0xFFFFFF
+            text: "14SEG"
+        - switch:
+            id: sw_view_seg14
+            align: CENTER
+            x: 60
+            y: -18
+            state:
+              checked: true
+            on_value:
+              then:
+                - lambda: 'id(view_flag_seg14) = x;'
+        - label:
+            align: CENTER
+            x: -60
+            y: 18
+            text_color: 0xFFFFFF
+            text: "Moderno"
+        - switch:
+            id: sw_view_moderno
+            align: CENTER
+            x: 60
+            y: 18
+            state:
+              checked: true
+            on_value:
+              then:
+                - lambda: 'id(view_flag_moderno) = x;'
+        - label:
+            align: CENTER
+            x: -60
+            y: 55
+            text_color: 0xFFFFFF
+            text: "Face"
+        - switch:
+            id: sw_view_face
+            align: CENTER
+            x: 60
+            y: 55
+            state:
+              checked: false
+            on_value:
+              then:
+                - lambda: 'id(view_flag_face) = x;'

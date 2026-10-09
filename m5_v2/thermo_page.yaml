@@ -1,0 +1,39 @@
+<<: !include my_const.yaml
+<<: !include thermo_act.yaml
+
+lvgl:
+  pages:
+    - id: page_thermo
+      on_load:
+        - lambda: id(current_page_index) = ${PAGE_THERMO_ID};
+        - script.execute: thermo_apply_view_style # applica subito hidden/colori shared_hvac_label: senza, al boot resta visibile finche' non si fa il primo swipe
+        - if: # nome dell'entita' mostrata, solo se ce n'e' piu' di una
+            condition:
+              lambda: 'return thermo_list.size() > 1;'
+            then:
+              - script.execute:
+                  id: entity_toast
+                  name: !lambda 'return entity_sel(thermo_list, id(thermo_sel))->name;'
+      on_swipe_left: !include common_swipe_next.yaml
+      on_swipe_right: !include common_swipe_previous.yaml
+      on_swipe_up: # v2: su/giu' = entita' successiva/precedente (lo stile di vista e' passato alla ghiera tenuta 3-5 s)
+        - script.execute:
+            id: thermo_entity_step
+            dir: 1
+      on_swipe_down:
+        - script.execute:
+            id: thermo_entity_step
+            dir: -1
+      widgets:
+        - !include thermo_view_analog.yaml
+        - !include thermo_view_seg14.yaml
+        - !include thermo_view_moderno.yaml
+        - !include thermo_view_face.yaml
+        - label: # shared_hvac_label: modalita' climate (off/auto/heat), condiviso da Analog e 14SEG
+            id: shared_hvac_label
+            align: CENTER
+            x: 0
+            y: 30
+            text_color: 0x000000
+            text_font: font_hvac_mode
+            text: "--"

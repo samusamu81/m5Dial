@@ -1,0 +1,27 @@
+obj: # clock_view_seg14: orologio digitale HH:MM:SS colorato, con giorno/data dedicati (font DSEG14)
+  id: clock_view_seg14
+  hidden: true
+  height: 240
+  width: 240
+  align: CENTER
+  pad_all: 0
+  border_width: 0
+  bg_color: 0x0A192F # stesso blu notte scuro delle altre viste
+  widgets:
+    - label:
+        id: day_label_seg14
+        align: CENTER
+        y: -85
+        text_color: 0xFFFFFF
+    - label:
+        id: date_label_seg14
+        align: CENTER
+        y: 85
+        text_color: 0xFFFFFF
+    - label: # hh:mm:ss - ore rosse, minuti verdi, secondi blu, ":" grigi (via recolor)
+        id: time_label_seg14
+        align: CENTER
+        y: 0
+        recolor: true
+        text_font: font_clock_seg14
+        text: "--:--:--"

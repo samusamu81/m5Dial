@@ -1,0 +1,332 @@
+# Logica pagina Luci HWB: fonts + gestione stile di vista (analog/seg14/moderno/face) + algebra H/Wh/Bl.
+# Il sync da HA di rgbw_color/brightness/stato on-off e' condiviso con la pagina RGBW e vive in
+# light_common.yaml (rgbw_can_*/bright_can); qui si parte da quei canonici per calcolare:
+# - H: attributo hs_color, letto direttamente qui (unico per HWB, HA lo espone sempre a prescindere dal color_mode).
+# - Wh: W / (W + max(R,G,B)*brightness/255), sui valori fisici, 0-100 (hwb_compute_wh_bl, richiamato da light_common).
+# - Bl: 1 - brightness/255, 0-100 (idem). In scrittura Bl scala anche W a mano (W = 255*Wh*(1-Bl)): la brightness non agisce sul bianco.
+# Scrittura verso HA: tap su un settore (10-2=H, 2-6=Bl, 6-10=Wh in seg14) seleziona il canale,
+# la ghiera lo modifica e lo scrive su HA (hwb_change_channel), stesso pattern di rgbw_change_channel.
+# Analog/Moderno/Face restano segnaposto, solo Seg14 ha il layout statico (vedi light_hwb_view_seg14.yaml).
+
+globals:
+  - id: hwb_can_h # hue 0-360 letta da HA (attributo hs_color), valida solo quando hwb_light_on e' true
+    type: int
+    initial_value: '0'
+  - id: hwb_light_on # stato on/off dell'entita': gating per l'uso di hwb_can_h (stesso pattern di rgbw_light_on)
+    type: bool
+    initial_value: 'false'
+  - id: hwb_can_wh # whiteness 0-100: W / (W + max(R,G,B)) del canonico HA
+    type: int
+    initial_value: '0'
+  - id: hwb_can_bl # blackness 0-100: 1 - brightness/255
+    type: int
+    initial_value: '0'
+  - id: hwb_hue_rgb_r # output di hwb_hue_to_rgb: RGB della hue pura (S=100%, L=50%), per colorare le label in stile ruota cromatica
+    type: int
+    initial_value: '0'
+  - id: hwb_hue_rgb_g
+    type: int
+    initial_value: '0'
+  - id: hwb_hue_rgb_b
+    type: int
+    initial_value: '0'
+  - id: hwb_out_r # output di hwb_apply_whiteness: hue_rgb * (1 - Wh)
+    type: int
+    initial_value: '0'
+  - id: hwb_out_g
+    type: int
+    initial_value: '0'
+  - id: hwb_out_b
+    type: int
+    initial_value: '0'
+  - id: hwb_out_w # output di hwb_apply_whiteness: canale W = 255 * Wh
+    type: int
+    initial_value: '0'
+  - id: hwb_out_bright # output di hwb_apply_whiteness: brightness = 255 * (1 - Bl)
+    type: int
+    initial_value: '0'
+  - id: hwb_selected_channel # 0=H, 1=Wh, 2=Bl, -1=nessuno: quale canale regola l'encoder (toggle al tap, stesso pattern di rgbw_selected_channel)
+    type: int
+    initial_value: '-1'
+
+font:
+  - file: "./fonts/DSEG14Classic-Regular.ttf" # lettere H/Wh/Bl in stile 14 segmenti
+    id: font_hwb_letter
+    size: 30
+    bpp: 4
+    glyphs: "HWBhl<>" # <> per l'indicatore di selezione ">H<" applicato da hwb_update_selection
+  - file: "gfonts://Roboto@bold" # lettere dei 3 selettori a triangolo in vista Analog
+    id: font_hwb_sel
+    size: 18
+    bpp: 4
+    glyphs: "HWBhl"
+  - file: "./fonts/DSEG14Classic-Regular.ttf" # valore hue (0-360), riga principale
+    id: font_hwb_value
+    size: 36
+    bpp: 4
+    glyphs: "0123456789X" # X per lbl_hwb_x (indicatore colore reale in seg14, come lbl_rgbw_x)
+  - file: "./fonts/DSEG14Classic-Regular.ttf" # valori whiteness/blackness (0-100), riga secondaria
+    id: font_hwb_value_small
+    size: 24
+    bpp: 4
+    glyphs: "0123456789"
+
+script:
+  - id: light_hwb_cycle_next
+    then:
+      - lambda: |-
+          int n = id(view_style);
+          for (int i = 0; i < 4; i++) {
+            n = n + 1;
+            if (n > ${VIEW_STYLE_FACE}) n = ${VIEW_STYLE_ANALOG};
+            bool enabled = (n == ${VIEW_STYLE_ANALOG} && id(view_flag_analog)) ||
+                           (n == ${VIEW_STYLE_SEG14} && id(view_flag_seg14)) ||
+                           (n == ${VIEW_STYLE_MODERNO} && id(view_flag_moderno)) ||
+                           (n == ${VIEW_STYLE_FACE} && id(view_flag_face));
+            if (enabled) break;
+          }
+          id(view_style) = n;
+      - script.execute: light_hwb_apply_view_style
+  - id: light_hwb_apply_view_style # separato da light_hwb_cycle_next per poter essere richiamato anche al boot/page-load
+    then:
+      - lvgl.widget.update:
+          id: light_hwb_view_analog
+          hidden: !lambda 'return id(view_style) != ${VIEW_STYLE_ANALOG};'
+      - lvgl.widget.update:
+          id: light_hwb_view_seg14
+          hidden: !lambda 'return id(view_style) != ${VIEW_STYLE_SEG14};'
+      - lvgl.widget.update:
+          id: light_hwb_view_moderno
+          hidden: !lambda 'return id(view_style) != ${VIEW_STYLE_MODERNO};'
+      - lvgl.widget.update:
+          id: light_hwb_view_face
+          hidden: !lambda 'return id(view_style) != ${VIEW_STYLE_FACE};'
+      - if: # entrando in analog/seg14/moderno rinfresca subito la label H, altrimenti resta quella dell'ultimo sync HA
+          condition:
+            lambda: 'return id(view_style) != ${VIEW_STYLE_FACE};'
+          then:
+            - script.execute: hwb_refresh_view
+            - script.execute: hwb_update_selection
+
+  - id: hwb_hue_to_rgb # hue (0-360) -> RGB puro (S=100%, L=50%), output in hwb_hue_rgb_r/g/b
+    mode: single
+    parameters:
+      h: int
+    then:
+      - lambda: |-
+          float hp = fmodf((float) h, 360.0f) / 60.0f; // 0..6
+          float x = 1.0f - fabsf(fmodf(hp, 2.0f) - 1.0f);
+          float r, g, b;
+          if (hp < 1)      { r = 1; g = x; b = 0; }
+          else if (hp < 2) { r = x; g = 1; b = 0; }
+          else if (hp < 3) { r = 0; g = 1; b = x; }
+          else if (hp < 4) { r = 0; g = x; b = 1; }
+          else if (hp < 5) { r = x; g = 0; b = 1; }
+          else             { r = 1; g = 0; b = x; }
+          id(hwb_hue_rgb_r) = (int) roundf(r * 255.0f);
+          id(hwb_hue_rgb_g) = (int) roundf(g * 255.0f);
+          id(hwb_hue_rgb_b) = (int) roundf(b * 255.0f);
+
+  - id: hwb_apply_whiteness # hue_rgb * (1 - Wh) per R/G/B, W = 255 * Wh * (1 - Bl), brightness = 255 * (1 - Bl). Wh/Bl 0-100 -> frazione 0-1. Output in hwb_out_r/g/b/w/bright
+    then:
+      - lambda: |-
+          float wh_frac = id(hwb_can_wh) / 100.0f;
+          float bl_frac = id(hwb_can_bl) / 100.0f;
+          id(hwb_out_r) = (int) roundf(id(hwb_hue_rgb_r) * (1.0f - wh_frac));
+          id(hwb_out_g) = (int) roundf(id(hwb_hue_rgb_g) * (1.0f - wh_frac));
+          id(hwb_out_b) = (int) roundf(id(hwb_hue_rgb_b) * (1.0f - wh_frac));
+          // la brightness HA agisce solo su R/G/B (Shelly RGBW): Bl va applicato a mano anche al bianco
+          id(hwb_out_w) = (int) roundf(255.0f * wh_frac * (1.0f - bl_frac));
+          id(hwb_out_bright) = (int) roundf(255.0f * (1.0f - bl_frac));
+
+  - id: hwb_compute_wh_bl # da RGBW canonico + brightness HA: Wh = W/(W+max(R,G,B)*br/255) sui valori fisici, Bl = 1 - brightness/255 (entrambe 0-100)
+    then:
+      - lambda: |-
+          // valori fisici: la brightness scala solo R/G/B, W esce cosi' com'e'
+          float max_rgb = std::max({id(rgbw_can_r), id(rgbw_can_g), id(rgbw_can_b)}) * id(bright_can) / 255.0f;
+          float w = id(rgbw_can_w);
+          float denom = w + max_rgb;
+          id(hwb_can_wh) = denom > 0 ? (int) roundf(100.0f * w / denom) : 0;
+          id(hwb_can_bl) = (int) roundf(100.0f * (1.0f - id(bright_can) / 255.0f));
+
+  - id: hwb_change_channel # applica un delta encoder al canale selezionato (H/Wh/Bl), poi scrive su HA. No-op se nessun canale selezionato (channel < 0)
+    mode: single
+    parameters:
+      channel: int
+      direction: int
+    then:
+      - if:
+          condition:
+            lambda: 'return channel >= 0;'
+          then:
+            - lambda: |-
+                const int H_STEP = 10;
+                const int WB_STEP = 4;
+                int h = id(hwb_can_h);
+                int wh = id(hwb_can_wh);
+                int bl = id(hwb_can_bl);
+                if (channel == 0) {
+                  h = ((h + H_STEP * direction) % 360 + 360) % 360; // hue e' circolare, wrap invece di clamp
+                  h = (((h + 5) / 10) * 10) % 360; // arrotonda alla decina piu' vicina (hue da HA puo' arrivare non multipla di 10); h>=0 qui, quindi la divisione intera non tronca verso lo zero sbagliando
+                } else if (channel == 1) {
+                  wh += WB_STEP * direction;
+                  if (wh > 100) wh = 100;
+                  if (wh < 0) wh = 0;
+                } else if (channel == 2) {
+                  bl += WB_STEP * direction;
+                  if (bl > 100) bl = 100;
+                  if (bl < 0) bl = 0;
+                }
+                id(hwb_can_h) = h; id(hwb_can_wh) = wh; id(hwb_can_bl) = bl;
+            - script.execute:
+                id: hwb_hue_to_rgb
+                h: !lambda 'return id(hwb_can_h);'
+            - script.execute: hwb_apply_whiteness
+            - homeassistant.service: # stesso pattern di rgbw_change_channel: H/Wh/Bl locali -> RGBW+brightness canonici -> scrittura HA
+                service: light.turn_on
+                data:
+                  entity_id: !lambda 'return light_cur(light_list, id(light_sel)).entity;'
+                  brightness: !lambda 'return id(hwb_out_bright);'
+                data_template:
+                  rgbw_color: !lambda |-
+                    char buf[32];
+                    snprintf(buf, sizeof(buf), "[%d,%d,%d,%d]", id(hwb_out_r), id(hwb_out_g), id(hwb_out_b), id(hwb_out_w));
+                    return std::string(buf);
+            - script.execute: hwb_refresh_view
+
+  - id: hwb_update_selection # sincronizza l'indicatore di canale selezionato: testo ">X<" in seg14 (stesso pattern di rgbw_update_selection)
+    then:
+      # vista Analog: selettore "checked" = fondo grigio scuro, lettera bianca; altrimenti lettera grigio medio (colore di H) per tutti e tre
+      - lvgl.widget.update:
+          id: btn_hwb_analog_h
+          state: {checked: !lambda 'return id(hwb_selected_channel) == 0;'}
+      - lvgl.label.update:
+          id: lbl_hwb_analog_h
+          text_color: !lambda 'return id(hwb_selected_channel) == 0 ? Color(0xFF, 0xFF, 0xFF) : Color(0x80, 0x80, 0x80);'
+      - lvgl.widget.update:
+          id: btn_hwb_analog_w
+          state: {checked: !lambda 'return id(hwb_selected_channel) == 1;'}
+      - lvgl.label.update:
+          id: lbl_hwb_analog_w
+          text_color: !lambda 'return id(hwb_selected_channel) == 1 ? Color(0xFF, 0xFF, 0xFF) : Color(0x80, 0x80, 0x80);'
+      - lvgl.widget.update:
+          id: btn_hwb_analog_b
+          state: {checked: !lambda 'return id(hwb_selected_channel) == 2;'}
+      - lvgl.label.update:
+          id: lbl_hwb_analog_b
+          text_color: !lambda 'return id(hwb_selected_channel) == 2 ? Color(0xFF, 0xFF, 0xFF) : Color(0x80, 0x80, 0x80);'
+      # vista Moderno: knob visibile solo sull'arco selezionato + lettera a colori scambiati nella riga in basso
+      # (H usa la hue pura calcolata da hwb_refresh_view in hwb_hue_rgb_*, sempre colorata anche a luce spenta per restare leggibile)
+      - lvgl.arc.update:
+          id: arc_hwb_h
+          knob:
+            bg_opa: !lambda 'return id(hwb_selected_channel) == 0 ? 255 : 0;'
+            bg_color: 0xFFFFFF
+            border_color: 0x000000
+            border_width: !lambda 'return id(hwb_selected_channel) == 0 ? 2 : 0;'
+            pad_all: !lambda 'return id(hwb_selected_channel) == 0 ? 2 : 0;'
+      - lvgl.label.update: # non selezionata: lettera color arco su grigio; selezionata: colori scambiati
+          id: lbl_hwb_moderno_sel_h
+          text_color: !lambda 'return id(hwb_selected_channel) == 0 ? Color(0x80, 0x80, 0x80) : Color(id(hwb_hue_rgb_r), id(hwb_hue_rgb_g), id(hwb_hue_rgb_b));'
+          bg_color: !lambda 'return id(hwb_selected_channel) == 0 ? Color(id(hwb_hue_rgb_r), id(hwb_hue_rgb_g), id(hwb_hue_rgb_b)) : Color(0x80, 0x80, 0x80);'
+      - lvgl.arc.update:
+          id: arc_hwb_w
+          knob:
+            bg_opa: !lambda 'return id(hwb_selected_channel) == 1 ? 255 : 0;'
+            bg_color: 0xFFFFFF
+            border_color: 0x000000
+            border_width: !lambda 'return id(hwb_selected_channel) == 1 ? 2 : 0;'
+            pad_all: !lambda 'return id(hwb_selected_channel) == 1 ? 2 : 0;'
+      - lvgl.label.update: # non selezionata: lettera color arco su grigio; selezionata: colori scambiati
+          id: lbl_hwb_moderno_sel_w
+          text_color: !lambda 'return id(hwb_selected_channel) == 1 ? Color(0x80, 0x80, 0x80) : Color(0xFF, 0xFF, 0xFF);'
+          bg_color: !lambda 'return id(hwb_selected_channel) == 1 ? Color(0xFF, 0xFF, 0xFF) : Color(0x80, 0x80, 0x80);'
+      - lvgl.arc.update:
+          id: arc_hwb_b
+          knob:
+            bg_opa: !lambda 'return id(hwb_selected_channel) == 2 ? 255 : 0;'
+            bg_color: 0xFFFFFF
+            border_color: 0x000000
+            border_width: !lambda 'return id(hwb_selected_channel) == 2 ? 2 : 0;'
+            pad_all: !lambda 'return id(hwb_selected_channel) == 2 ? 2 : 0;'
+      - lvgl.label.update: # non selezionata: lettera color arco su grigio; selezionata: colori scambiati
+          id: lbl_hwb_moderno_sel_b
+          text_color: !lambda 'return id(hwb_selected_channel) == 2 ? Color(0x80, 0x80, 0x80) : Color(0x00, 0x00, 0x00);'
+          bg_color: !lambda 'return id(hwb_selected_channel) == 2 ? Color(0x00, 0x00, 0x00) : Color(0x80, 0x80, 0x80);'
+      - lvgl.label.update:
+          id: lbl_hwb_h_letter
+          text: !lambda 'return id(hwb_selected_channel) == 0 ? std::string(">H<") : std::string("H");'
+      - lvgl.label.update:
+          id: lbl_hwb_w_letter
+          text: !lambda 'return id(hwb_selected_channel) == 1 ? std::string(">Wh<") : std::string("Wh");'
+      - lvgl.label.update:
+          id: lbl_hwb_b_letter
+          text: !lambda 'return id(hwb_selected_channel) == 2 ? std::string(">Bl<") : std::string("Bl");'
+
+  - id: hwb_on_clockwise
+    mode: queued
+    then:
+      - script.execute:
+          id: hwb_change_channel
+          channel: !lambda 'return id(hwb_selected_channel);'
+          direction: 1
+  - id: hwb_on_anticlockwise
+    mode: queued
+    then:
+      - script.execute:
+          id: hwb_change_channel
+          channel: !lambda 'return id(hwb_selected_channel);'
+          direction: -1
+
+  - id: hwb_refresh_view # aggiorna le label hue/whiteness/blackness + colore reale (X) in seg14
+    then:
+      - script.execute: # ricalcola il colore reale (hue pura -> blend con whiteness) prima di aggiornare la X
+          id: hwb_hue_to_rgb
+          h: !lambda 'return id(hwb_can_h);'
+      - script.execute: hwb_apply_whiteness
+      - lvgl.indicator.update: # vista Analog: lancetta hue, arrotondata alla decina con wrap (357 -> 0) per restare al centro di uno spicchio
+          id: hwb_hue_needle
+          value: !lambda 'return (((id(hwb_can_h) % 360 + 360) % 360 + 5) / 10 * 10) % 360;'
+      - lvgl.indicator.update: # vista Analog: lancetta Wh (bianca) sulla scala di destra, 100 - Wh perche' la scala delle lancette ha 0 all'una
+          id: hwb_wh_needle
+          value: !lambda 'return 100 - id(hwb_can_wh);'
+      - lvgl.indicator.update: # vista Analog: lancetta Bl (grigio scuro), idem
+          id: hwb_bl_needle
+          value: !lambda 'return 100 - id(hwb_can_bl);'
+      - lvgl.label.update:
+          id: lbl_hwb_hue_val
+          text: !lambda 'char b[4]; snprintf(b, sizeof(b), "%03d", id(hwb_can_h)); return b;'
+      - lvgl.label.update:
+          id: lbl_hwb_white_val
+          text: !lambda 'char b[4]; snprintf(b, sizeof(b), "%03d", id(hwb_can_wh)); return b;'
+      - lvgl.label.update:
+          id: lbl_hwb_black_val
+          text: !lambda 'char b[4]; snprintf(b, sizeof(b), "%03d", id(hwb_can_bl)); return b;'
+      - lvgl.widget.update: # "X" in light_hwb_view_seg14: colore reale risultante, nero se luce off (come lbl_rgbw_x)
+          id: lbl_hwb_x
+          text_color: !lambda 'return id(hwb_light_on) ? Color(id(hwb_out_r), id(hwb_out_g), id(hwb_out_b)) : Color(0, 0, 0);'
+      - lvgl.widget.update: # vista Analog: pallino dell'interruttore, punta verso la scritta: O = 57 gradi (9,14), I = 103 gradi (-4,17)
+          id: hwb_switch_dot
+          x: !lambda 'return id(hwb_light_on) ? -4 : 9;'
+          y: !lambda 'return id(hwb_light_on) ? 17 : 14;'
+      # vista Moderno: H = traccia piena color hue (grigia se off), knob alla hue; Wh/Bl = riempimento bianco/nero
+      - lvgl.arc.update:
+          id: arc_hwb_h
+          value: !lambda 'return (id(hwb_can_h) % 360 + 360) % 360;'
+          arc_color: !lambda 'return id(hwb_light_on) ? Color(id(hwb_hue_rgb_r), id(hwb_hue_rgb_g), id(hwb_hue_rgb_b)) : Color(0x80, 0x80, 0x80);'
+      - lvgl.arc.update:
+          id: arc_hwb_w
+          value: !lambda 'return id(hwb_can_wh);'
+          indicator:
+            arc_color: !lambda 'return id(hwb_light_on) ? Color(0xFF, 0xFF, 0xFF) : Color(0x80, 0x80, 0x80);'
+      - lvgl.arc.update:
+          id: arc_hwb_b
+          value: !lambda 'return id(hwb_can_bl);'
+      - lvgl.led.update: # pallino centrale, stessa logica di rgbw_center_dot
+          id: hwb_center_dot
+          color: !lambda 'return id(hwb_light_on) ? Color(id(rgb_ha_r), id(rgb_ha_g), id(rgb_ha_b)) : Color(0x80, 0x80, 0x80);'
+          brightness: !lambda 'return id(hwb_light_on) ? id(bright_can) : 128;' # 0-255, NON 0-1 (vedi rgbw_center_dot in light_rgbw_act.yaml)
+      - lvgl.label.update: # stato ON/OFF, come lbl_rgbw_state
+          id: lbl_hwb_state
+          text: !lambda 'return id(hwb_light_on) ? std::string("ON") : std::string("OFF");'
+      - script.execute: hwb_update_selection # la lettera H in vista Moderno ha il colore della hue: va ricolorata a ogni refresh

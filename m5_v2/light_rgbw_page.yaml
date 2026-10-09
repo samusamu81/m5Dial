@@ -1,0 +1,33 @@
+<<: !include my_const.yaml
+<<: !include light_rgbw_act.yaml
+
+lvgl:
+  pages:
+    - id: page_light_rgbw
+      bg_color: 0x000000
+      bg_opa: COVER
+      on_load:
+        - lambda: id(current_page_index) = ${PAGE_LIGHT_RGBW_ID};
+        - script.execute: light_rgbw_apply_view_style # applica subito lo stile condiviso: senza, cambiando dominio si vedrebbe lo stile sbagliato finche' non si swipa su/giu'
+        - if: # nome dell'entita' mostrata, solo se ce n'e' piu' di una
+            condition:
+              lambda: 'return light_list.size() > 1;'
+            then:
+              - script.execute:
+                  id: entity_toast
+                  name: !lambda 'return entity_sel(light_list, id(light_sel))->name;'
+      on_swipe_left: !include common_swipe_next.yaml
+      on_swipe_right: !include common_swipe_previous.yaml
+      on_swipe_up: # v2: su/giu' = entita' successiva/precedente (lo stile di vista e' passato alla ghiera tenuta 3-5 s)
+        - script.execute:
+            id: light_entity_step
+            dir: 1
+      on_swipe_down:
+        - script.execute:
+            id: light_entity_step
+            dir: -1
+      widgets:
+        - !include light_rgbw_view_analog.yaml
+        - !include light_rgbw_view_seg14.yaml
+        - !include light_rgbw_view_moderno.yaml
+        - !include light_rgbw_view_face.yaml

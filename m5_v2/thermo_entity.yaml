@@ -1,0 +1,56 @@
+# Una valvola della pagina Termostato. Incluso una volta per valvola da m5Dial_v2.yaml:
+#   thermo_N: !include {file: m5_v2/thermo_entity.yaml, vars: {idx: N, name: "...", climate: climate.x, temp: sensor.x, hum: sensor.x}}
+# idx: ordine nello swipe su/giu' e suffisso degli id (deve essere unico). Il numero di valvole = numero di include.
+# Ogni sensore salva il valore nella propria voce di thermo_list; se la valvola e' quella selezionata ridisegna la pagina.
+
+esphome:
+  on_boot:
+    - priority: 800 # prima di tutto il resto: la lista e' completa quando partono gli on_boot delle pagine
+      then:
+        - lambda: |-
+            ThermoEntry e;
+            e.idx = ${idx};
+            e.name = "${name}";
+            e.climate = "${climate}";
+            entity_register(thermo_list, e);
+
+sensor:
+  - platform: homeassistant
+    id: thermo_true_${idx}
+    entity_id: ${temp}
+    on_value:
+      - lambda: |-
+          if (auto *e = entity_find(thermo_list, ${idx})) e->t_true = x;
+          if (entity_is_sel(thermo_list, id(thermo_sel), ${idx})) id(thermo_refresh).execute();
+  - platform: homeassistant
+    id: thermo_pv_${idx}
+    entity_id: ${climate}
+    attribute: current_temperature
+    on_value:
+      - lambda: |-
+          if (auto *e = entity_find(thermo_list, ${idx})) e->pv = x;
+          if (entity_is_sel(thermo_list, id(thermo_sel), ${idx})) id(thermo_refresh).execute();
+  - platform: homeassistant
+    id: thermo_sp_${idx}
+    entity_id: ${climate}
+    attribute: temperature
+    on_value:
+      - lambda: |-
+          if (auto *e = entity_find(thermo_list, ${idx})) e->sp = x;
+          if (entity_is_sel(thermo_list, id(thermo_sel), ${idx})) id(thermo_refresh).execute();
+  - platform: homeassistant
+    id: thermo_hum_${idx}
+    entity_id: ${hum}
+    on_value:
+      - lambda: |-
+          if (auto *e = entity_find(thermo_list, ${idx})) e->hum = x;
+          if (entity_is_sel(thermo_list, id(thermo_sel), ${idx})) id(thermo_refresh).execute();
+
+text_sensor:
+  - platform: homeassistant
+    id: thermo_mode_${idx}
+    entity_id: ${climate} # nessun attribute: stato diretto (off/auto/heat)
+    on_value:
+      - lambda: |-
+          if (auto *e = entity_find(thermo_list, ${idx})) e->mode = x;
+          if (entity_is_sel(thermo_list, id(thermo_sel), ${idx})) id(thermo_refresh).execute();

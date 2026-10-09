@@ -1,0 +1,31 @@
+<<: !include my_const.yaml
+<<: !include clock_act.yaml
+
+lvgl:
+  page_wrap: true # lo swipe left/right sull'ultima/prima pagina torna in giro
+  buffer_size: 25% # default = schermo intero (240x240x2 = 115KB di heap, niente PSRAM): lasciava la RAM al limite -> watchdog in LVGL
+  pages:
+    - id: page_clock
+      bg_color: 0x0A192F # riempie l'intero schermo, evita le bande chiare sopra/sotto il contenitore
+      bg_opa: COVER
+      on_load:
+        - lambda: id(current_page_index) = ${PAGE_CLOCK_ID};
+        - script.execute: clock_apply_view_style # applica subito lo stile condiviso: senza, cambiando dominio si vedrebbe lo stile sbagliato finche' non si swipa su/giu'
+      # v2: nessuno swipe su/giu' (nessuna entita' da scegliere); lo stile si cambia con la ghiera tenuta 3-5 s
+      on_swipe_left: !include common_swipe_next.yaml
+      on_swipe_right: !include common_swipe_previous.yaml
+      widgets:
+        - !include clock_view_analog.yaml
+        - !include clock_view_moderno.yaml
+        - !include clock_view_seg14.yaml
+        - !include clock_view_face.yaml
+        - label: # shared_day_label: condiviso da Analog e Moderno (stessa posizione in entrambi), nascosto altrove
+            id: shared_day_label
+            align: CENTER
+            y: -30
+            text_color: 0xFFFFFF
+        - label: # shared_date_label: condiviso da Analog e Moderno
+            id: shared_date_label
+            align: CENTER
+            y: 30
+            text_color: 0xFFFFFF

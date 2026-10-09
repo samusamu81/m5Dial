@@ -1,0 +1,137 @@
+<<: !include my_const.yaml
+
+# Pagina "TAG scansionato": fuori dal giro di swipe (skip: true), aperta solo da
+# on_tag del lettore NFC interno (hw.yaml). Decodifica del nome del tag e avvio
+# della musica stanno in HA (automazione m5dial_tag_feedback), che
+# risponde con l'azione tag_result.
+# Nessuna risposta entro TAG_HA_TIMEOUT -> "HA non risponde".
+
+globals:
+  - id: tag_return_page_index # pagina da cui si e' arrivati, per tornarci
+    type: int
+    initial_value: ${PAGE_CLOCK_ID}
+  - id: tag_last_uid
+    type: std::string
+    initial_value: '""'
+
+font:
+  - file: "gfonts://Roboto@bold"
+    id: font_tag_name
+    size: 26
+    bpp: 4
+    glyphsets: [GF_Latin_Core] # lettere accentate nei nomi dati da HA
+  - file: "gfonts://Roboto@bold"
+    id: font_tag_title
+    size: 20
+    bpp: 4
+    glyphs: "TAG"
+
+api:
+  services: # stesso nome chiave di my_conf.yaml, cosi' le liste si fondono
+    - service: tag_result # chiamata da HA (automazione m5dial_tag_feedback) dopo homeassistant.tag_scanned
+      variables:
+        tag_id: string
+        title: string   # "Spotify - Artista"; vuoto se il nome del tag non segue lo schema
+        content: string # etichetta del tag, es. "Pink Floyd"
+        known: bool     # il tag ha un nome in HA (tono discendente) o e' nuovo (ascendente)
+      then:
+        - script.stop: tag_ha_timeout
+        - lambda: |-
+            // tag valido = HA fa partire la musica: alla fine si va sulla pagina musica invece che su quella di partenza
+            if (!title.empty()) id(tag_return_page_index) = ${PAGE_MUSIC_ID};
+        - lvgl.label.update:
+            id: tag_name_label
+            text: !lambda 'return title.empty() ? std::string("N/A") : title + "\n" + content;'
+        - lvgl.label.update:
+            id: tag_uid_label
+            text: !lambda 'return tag_id;'
+        - if:
+            condition:
+              lambda: 'return known;'
+            then:
+              - rtttl.play: "tag_known:d=16,o=6,b=180:c7,g,e,c" # discendente
+            else:
+              - rtttl.play: "tag_new:d=16,o=6,b=180:c,e,g,c7" # ascendente
+        - script.execute: tag_return_later
+
+script:
+  - id: tag_on_scan
+    parameters:
+      uid: string
+    then:
+      - if:
+          condition: lvgl.is_paused # salvaschermo attivo: un tag riaccende lo schermo
+          then:
+            - lvgl.resume:
+      - lambda: |-
+          if (id(current_page_index) != ${PAGE_TAG_ID})
+            id(tag_return_page_index) = id(current_page_index);
+          id(tag_last_uid) = uid;
+      - script.stop: tag_return_later
+      - lvgl.label.update:
+          id: tag_name_label
+          text: "lettura..."
+      - lvgl.label.update:
+          id: tag_uid_label
+          text: !lambda 'return uid;'
+      - lvgl.page.show: page_tag
+      - homeassistant.tag_scanned: !lambda 'return uid;'
+      - script.execute: tag_ha_timeout
+
+  - id: tag_ha_timeout
+    mode: restart
+    then:
+      - delay: ${TAG_HA_TIMEOUT}
+      - lvgl.label.update:
+          id: tag_name_label
+          text: "HA non risponde"
+      - rtttl.play: "tag_err:d=8,o=5,b=120:c,p,c"
+      - script.execute: tag_return_later
+
+  - id: tag_return_later
+    mode: restart
+    then:
+      - delay: ${TAG_SHOW_TIME}
+      - lambda: |-
+          LvPageType *p;
+          switch (id(tag_return_page_index)) {
+          case ${PAGE_THERMO_ID}:     p = id(page_thermo); break;
+          case ${PAGE_LIGHT_RGBW_ID}: p = id(page_light_rgbw); break;
+          case ${PAGE_LIGHT_HWB_ID}:  p = id(page_light_hwb); break;
+          case ${PAGE_MUSIC_ID}:      p = id(page_music); break;
+          case ${PAGE_SETTINGS_ID}:   p = id(page_settings); break;
+          default:                    p = id(page_clock); break;
+          }
+          // show_page (non lv_scr_load) aggiorna anche la pagina corrente di ESPHome, che serve allo swipe next/previous
+          p->get_parent()->show_page(p->index, LV_SCR_LOAD_ANIM_NONE, 0);
+
+lvgl:
+  pages:
+    - id: page_tag
+      skip: true # mai raggiunta con lvgl.page.next/previous (swipe)
+      bg_color: 0x0A192F
+      bg_opa: COVER
+      on_load:
+        - lambda: id(current_page_index) = ${PAGE_TAG_ID}; # encoder/ghiera senza effetto qui
+      widgets:
+        - label:
+            align: TOP_MID
+            y: 22
+            text_font: font_tag_title
+            text_color: 0x3B82F6
+            text: "TAG"
+        - label:
+            id: tag_name_label # "Spotify - Artista" + a capo + contenuto, centrato anche se va su piu' righe
+            align: CENTER
+            width: 200
+            long_mode: WRAP
+            text_align: CENTER
+            text_font: font_tag_name
+            text_color: 0xFFFFFF
+            text: ""
+        - label:
+            id: tag_uid_label # numero (UID) del tag, in piccolo
+            align: BOTTOM_MID
+            y: -26
+            text_color: 0xA0A0A0
+            text: ""

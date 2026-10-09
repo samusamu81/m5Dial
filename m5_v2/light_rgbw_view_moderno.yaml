@@ -1,0 +1,248 @@
+obj: # light_rgbw_view_moderno: 4 archi concentrici (R/G/B/W, esterno->interno), 0-255, gap 90° in basso.
+  id: light_rgbw_view_moderno # gli archi sono ora SOLO visivi (niente on_click): la selezione del canale
+     # avviene tramite 4 "hit-arc" invisibili sovrapposti (stessa geometria, banda piu' larga), cosi'
+     # niente drag nativo LVGL sui valori (vedi nota sotto) e un target di tap piu' generoso/preciso.
+     # Il knob (adjustable:false quindi non draggabile) viene reso visibile solo sull'arco selezionato via rgbw_update_selection.
+  hidden: true
+  height: 240
+  width: 240
+  align: CENTER
+  pad_all: 0
+  border_width: 0
+  bg_color: 0x000000
+  bg_opa: COVER
+  widgets:
+    # --- Archi visivi: solo rendering (traccia grigio scuro sempre visibile + indicator colorato), niente on_click ---
+    - arc: # R, esterno (230px)
+        id: arc_rgbw_r
+        align: CENTER
+        width: 230
+        height: 230
+        start_angle: 135
+        end_angle: 45 # 270°, gap 90° in basso (stessa convenzione di thermo_meter/volume_arc)
+        min_value: 0
+        max_value: 255
+        value: 0
+        adjustable: false # pilotato solo dall'encoder quando selezionato, non da drag touch
+        arc_width: 10
+        arc_opa: COVER # traccia sempre visibile (anche a valore 0), non piu' TRANSP: si vede dove sono i canali vuoti
+        arc_color: 0x202020 # grigio scuro
+        arc_rounded: false
+        indicator:
+          arc_width: 10
+          arc_color: 0xFF0000
+          arc_rounded: true
+        knob: # visibile solo se canale selezionato (vedi rgbw_update_selection): bg_opa/border_width TRANSP/0 di default
+          bg_opa: TRANSP
+          bg_color: 0xFFFFFF
+          border_width: 0
+          border_color: 0x000000
+          pad_all: 4
+    - arc: # G (180px)
+        id: arc_rgbw_g
+        align: CENTER
+        width: 180
+        height: 180
+        start_angle: 135
+        end_angle: 45
+        min_value: 0
+        max_value: 255
+        value: 0
+        adjustable: false
+        arc_width: 10
+        arc_opa: COVER
+        arc_color: 0x202020
+        arc_rounded: false
+        indicator:
+          arc_width: 10
+          arc_color: 0x22C55E
+          arc_rounded: true
+        knob:
+          bg_opa: TRANSP
+          bg_color: 0xFFFFFF
+          border_width: 0
+          border_color: 0x000000
+          pad_all: 4
+    - arc: # B (130px)
+        id: arc_rgbw_b
+        align: CENTER
+        width: 130
+        height: 130
+        start_angle: 135
+        end_angle: 45
+        min_value: 0
+        max_value: 255
+        value: 0
+        adjustable: false
+        arc_width: 10
+        arc_opa: COVER
+        arc_color: 0x202020
+        arc_rounded: false
+        indicator:
+          arc_width: 10
+          arc_color: 0x3B82F6
+          arc_rounded: true
+        knob:
+          bg_opa: TRANSP
+          bg_color: 0xFFFFFF
+          border_width: 0
+          border_color: 0x000000
+          pad_all: 4
+    - arc: # W, interno (80px)
+        id: arc_rgbw_w
+        align: CENTER
+        width: 80
+        height: 80
+        start_angle: 135
+        end_angle: 45
+        min_value: 0
+        max_value: 255
+        value: 0
+        adjustable: false
+        arc_width: 10
+        arc_opa: COVER
+        arc_color: 0x202020
+        arc_rounded: false
+        indicator:
+          arc_width: 10
+          arc_color: 0xFFFFFF
+          arc_rounded: true
+        knob:
+          bg_opa: TRANSP
+          bg_color: 0xFFFFFF
+          border_width: 0
+          border_color: 0x000000
+          pad_all: 4
+    # --- Hit-arc invisibili: stessa geometria (diametro) degli archi visivi ma banda piu' larga (18px vs 10px),
+    # completamente trasparenti (main/indicator/knob). Dichiarati DOPO gli archi visivi cosi' sono in cima allo
+    # z-order e ricevono il tocco per primi. Essendo "arc" (non "obj") il loro hit-test segue la forma ad anello
+    # reale (non un disco/rettangolo pieno), quindi il tap e' preciso sul canale giusto anche vicino al bordo.
+    - arc: # hit-R
+        align: CENTER
+        width: 230
+        height: 230
+        start_angle: 135
+        end_angle: 45
+        min_value: 0
+        max_value: 255
+        value: 0
+        adjustable: false
+        arc_width: 18
+        arc_opa: TRANSP
+        arc_rounded: false
+        indicator:
+          arc_opa: TRANSP
+        knob:
+          bg_opa: TRANSP
+          border_width: 0
+          pad_all: 0
+        on_click:
+          - lambda: 'id(rgbw_selected_channel) = (id(rgbw_selected_channel) == 0) ? -1 : 0;'
+          - script.execute: rgbw_update_selection
+    - arc: # hit-G
+        align: CENTER
+        width: 180
+        height: 180
+        start_angle: 135
+        end_angle: 45
+        min_value: 0
+        max_value: 255
+        value: 0
+        adjustable: false
+        arc_width: 18
+        arc_opa: TRANSP
+        arc_rounded: false
+        indicator:
+          arc_opa: TRANSP
+        knob:
+          bg_opa: TRANSP
+          border_width: 0
+          pad_all: 0
+        on_click:
+          - lambda: 'id(rgbw_selected_channel) = (id(rgbw_selected_channel) == 1) ? -1 : 1;'
+          - script.execute: rgbw_update_selection
+    - arc: # hit-B
+        align: CENTER
+        width: 130
+        height: 130
+        start_angle: 135
+        end_angle: 45
+        min_value: 0
+        max_value: 255
+        value: 0
+        adjustable: false
+        arc_width: 18
+        arc_opa: TRANSP
+        arc_rounded: false
+        indicator:
+          arc_opa: TRANSP
+        knob:
+          bg_opa: TRANSP
+          border_width: 0
+          pad_all: 0
+        on_click:
+          - lambda: 'id(rgbw_selected_channel) = (id(rgbw_selected_channel) == 2) ? -1 : 2;'
+          - script.execute: rgbw_update_selection
+    - arc: # hit-W
+        align: CENTER
+        width: 80
+        height: 80
+        start_angle: 135
+        end_angle: 45
+        min_value: 0
+        max_value: 255
+        value: 0
+        adjustable: false
+        arc_width: 18
+        arc_opa: TRANSP
+        arc_rounded: false
+        indicator:
+          arc_opa: TRANSP
+        knob:
+          bg_opa: TRANSP
+          border_width: 0
+          pad_all: 0
+        on_click:
+          - lambda: 'id(rgbw_selected_channel) = (id(rgbw_selected_channel) == 3) ? -1 : 3;'
+          - script.execute: rgbw_update_selection
+    - led: # pallino centrale, diametro 40px: colore = rgb_color di HA (rgb_ha_*, W incluso) + luminosita' bright_can, decorativo (nessun on_click: il tap passa all'hit-arc W sottostante)
+        id: rgbw_center_dot
+        align: CENTER
+        width: 40
+        height: 40
+        color: 0x000000
+        brightness: 0%
+    # 8 etichette (2 per canale, sinistra a 9 o'clock/destra a 3 o'clock, sulla circonferenza del proprio
+    # anello: raggio = raggio_esterno-5, centro della banda visiva). Rotazione: sinistra legge dal basso
+    # verso l'alto, destra dall'alto verso il basso. Colore (nero/colore canale) aggiornato da rgbw_refresh_view
+    # in base a se il riempimento dell'arco e' gia' passato sotto l'etichetta (leggibilita' sul fondo chiaro/scuro).
+    - label: {id: lbl_r_l, align: CENTER, x: -104, y: 5, transform_rotation: 270, text_color: 0xFF0000, text_font: font_rgbw_letter_small, text: "000"}
+    - label: {id: lbl_r_r, align: CENTER, x: 129, y: -5, transform_rotation: 90, text_color: 0xFF0000, text_font: font_rgbw_letter_small, text: "000"}
+    - label: {id: lbl_g_l, align: CENTER, x: -77, y: 5, transform_rotation: 270, text_color: 0x22C55E, text_font: font_rgbw_letter_small, text: "000"}
+    - label: {id: lbl_g_r, align: CENTER, x: 102, y: -5, transform_rotation: 90, text_color: 0x22C55E, text_font: font_rgbw_letter_small, text: "000"}
+    - label: {id: lbl_b_l, align: CENTER, x: -51, y: 5, transform_rotation: 270, text_color: 0x3B82F6, text_font: font_rgbw_letter_small, text: "000"}
+    - label: {id: lbl_b_r, align: CENTER, x: 76, y: -5, transform_rotation: 90, text_color: 0x3B82F6, text_font: font_rgbw_letter_small, text: "000"}
+    - label: {id: lbl_w_l, align: CENTER, x: -25, y: 5, transform_rotation: 270, text_color: 0xFFFFFF, text_font: font_rgbw_letter_small, text: "000"}
+    - label: {id: lbl_w_r, align: CENTER, x: 50, y: -5, transform_rotation: 90, text_color: 0xFFFFFF, text_font: font_rgbw_letter_small, text: "000"}
+    # Riga R G B W nel gap di 90° in basso (dove nessun anello viene disegnato): sembra solo testo (nessun
+    # bordo/sfondo, non "si capisce" che e' un pulsante), si accende del colore del canale se selezionato,
+    # grigia altrimenti - aggiornato da rgbw_update_selection. Sostituisce la vecchia scritta statica "RGBW"
+    # (restava sempre grigia). Le 4 lettere sono ora solo indicatori: il tap e' gestito da un unico obj
+    # trasparente generoso subito sotto (dichiarato dopo = in cima allo z-order), per evitare che un tocco
+    # impreciso sulla riga sfugga verso gli hit-arc dei canali sottostanti.
+    - label: {id: lbl_moderno_sel_r, align: CENTER, x: -36, y: 85, text_color: 0x808080, text_font: font_rgbw_letter, text: "R"}
+    - label: {id: lbl_moderno_sel_g, align: CENTER, x: -12, y: 85, text_color: 0x808080, text_font: font_rgbw_letter, text: "G"}
+    - label: {id: lbl_moderno_sel_b, align: CENTER, x: 12, y: 85, text_color: 0x808080, text_font: font_rgbw_letter, text: "B"}
+    - label: {id: lbl_moderno_sel_w, align: CENTER, x: 36, y: 85, text_color: 0x808080, text_font: font_rgbw_letter, text: "W"}
+    - obj: # catcher generoso per il ciclo R->G->B->W->nessuno, sovrapposto alla riga di lettere sopra
+        align: CENTER
+        x: 0
+        y: 85
+        width: 140
+        height: 50
+        pad_all: 0
+        border_width: 0
+        bg_opa: TRANSP
+        on_click:
+          - lambda: 'id(rgbw_selected_channel) = (id(rgbw_selected_channel) >= 3) ? -1 : id(rgbw_selected_channel) + 1;'
+          - script.execute: rgbw_update_selection

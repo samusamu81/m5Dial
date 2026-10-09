@@ -1,0 +1,49 @@
+<<: !include my_const.yaml
+wifi:
+  networks:
+    - ssid: !secret wifi_ssid
+      password: !secret wifi_password
+    - ssid: !secret wifi2_ssid
+      password: !secret wifi2_password
+ota:
+  platform: esphome
+  password: !secret ota_password
+font:
+  - file: "./fonts/mdi-webfont.ttf"
+    id: big_font
+    size: 50
+    bpp: 4
+    glyphs: 
+      - ${mdi_play_pause}
+      - ${mdi_skip_next_circle_outline}
+      - ${mdi_skip_previous_circle_outline}
+
+api:
+  encryption:
+    key: !secret m5dial_bimbi_api_encryption_key
+  services:
+  - service: cover_ready # chiamata dall'automazione HA m5dial_copertina_bmp quando /local/m5dial_cover.bmp e' pronta
+    variables:
+      version: string # timestamp: nell'URL evita di riusare la copertina precedente
+    then:
+    - lambda: |-
+        // buffer statico (in .bss, riservato all'avvio): a runtime l'heap e' frammentato e un blocco da 20-29KB
+        // spesso non c'e' ("Failed to allocate 28800 bytes. Largest free block: 24576"). Va riconsegnato prima di ogni decode.
+        static uint8_t cover_buf[100 * 100 * 2]; // 100x100 RGB565 (20KB): a 120 (28.8KB) mancava RAM a LVGL per gli archi -> watchdog
+        if (!id(music_cover).is_decoding()) id(music_cover).set_external_buffer(cover_buf, 100, 100);
+    - online_image.set_url:
+        id: music_cover
+        url: !lambda 'return "http://" + id(ha_ip) + ":8123/local/m5dial_cover.bmp?v=" + version;'
+
+  on_client_connected: # alla (ri)connessione di HA: rigenera la copertina, cosi' dopo un riavvio del dial non resta il segnaposto
+  - if:
+      condition:
+        lambda: 'return client_info.find("Home Assistant") != std::string::npos;'
+      then:
+      - lambda: 'id(ha_ip) = client_address;' # IP di HA dal client connesso (usato per l'URL della copertina)
+      - component.update: node_name # update_interval never: pubblica il nome nodo quando HA si connette
+      - component.update: music_player_entity
+      - homeassistant.action:
+          action: automation.trigger
+          data:
+            entity_id: automation.m5dial_copertina_player_in_bmp

@@ -1,0 +1,15 @@
+obj: # light_rgbw_view_face: segnaposto, design futuro
+  id: light_rgbw_view_face
+  hidden: true
+  height: SIZE_CONTENT
+  width: 240
+  align: CENTER
+  pad_all: 0
+  border_width: 0
+  bg_color: 0x000000
+  bg_opa: COVER
+  widgets:
+    - label:
+        align: CENTER
+        text_color: 0xFFFFFF
+        text: "face luci RGBW"

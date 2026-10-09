@@ -1,0 +1,181 @@
+obj: # thermo_view_analog: 3 zone concettuali attorno allo stesso centro (sinistra=temperature, alto-dx=umidita', basso-dx=TBD)
+  id: thermo_view_analog
+  hidden: false # stile di boot
+  height: 240
+  width: 240
+  align: CENTER
+  pad_all: 0
+  border_width: 0
+  bg_color: 0x000000
+  bg_opa: COVER
+  widgets:
+    - meter: # zona sinistra: temperature, arco "dalle 18 alle 12 passando per sinistra" (90°->270°), copre l'intera meta' sinistra dell'orologio
+        id: thermo_meter_temp
+        width: 240
+        height: 240
+        align: CENTER
+        bg_opa: TRANSP
+        border_width: 0 # senza questo LVGL applica lo style "light" di default del meter: bordo 0xEEEEEE, visibile come "cerchio bianco"
+        scales:
+          - range_from: 80 # 8.0 - 32.0 °C, risoluzione 0.1 (x10)
+            range_to: 320
+            angle_range: 170
+            rotation: 90
+            indicators:
+              - line: # setpoint: sottile e la piu' vicina al bordo scala (raggio - 2px: r_mod e' deprecato in LVGL 9.x e con "length" il massimo raggiungibile e' il raggio della scala, mai oltre)
+                  id: needle_sp
+                  width: 2
+                  color: 0xFF0000
+                  length: 122 # raggio scala (120, meter 240px) + 2px: valore assoluto, non e' clampato da LVGL
+              - line: # present value: spessa e piu' corta della scala (raggio - 10px), stesso rosso del setpoint
+                  id: needle_pv
+                  width: 4
+                  color: 0xFF0000
+                  length: -10
+              - line: # true value: identica a PV ma verde
+                  id: needle_true
+                  width: 4
+                  color: 0x22C55E
+                  length: -10
+          - id: thermo_scale_temp_major # serve solo per poterne colorare via lambda le label (vedi esphome: on_boot in thermo_act.yaml)
+            range_from: 8
+            range_to: 32
+            angle_range: 170
+            rotation: 90
+            ticks:
+                width: 2
+                count: 7        # 7 valori -> 8,12,16,20,24,28,32
+                length: 12
+                color: 0xFF0000
+                major:
+                  stride: 1      # obbligatorio per generare le label
+                  width: 3
+                  length: 14
+                  color: 0xFF0000
+                  label_gap: 16  # obbligatorio per attivare le label
+          - range_from: 8
+            range_to: 32
+            angle_range: 170
+            rotation: 90
+            ticks:
+                width: 1
+                count: 13        # 13 valori -> 8,10,12,...,32
+                length: 6
+                color: 0xFF0000
+    - meter: # zona alto-destra: umidita' relativa, arco "tra le 12.30 e le 4" (285°->390°, gap in basso)
+        id: thermo_meter_hum
+        width: 240
+        height: 240
+        align: CENTER
+        bg_opa: TRANSP
+        border_width: 0 # vedi thermo_meter_temp: sopprime il bordo 0xEEEEEE dello style "light" di default
+        scales:
+          - range_from: 20 # 0% concettualmente "in basso" (fuori scala, mai mostrato: RH indoor raramente sotto 20%)
+            range_to: 100
+            angle_range: 105
+            rotation: 285
+            indicators:
+              - line: # umidita' relativa: spessa e leggermente piu' corta della scala
+                  id: needle_humidity
+                  width: 4
+                  color: 0x3B82F6
+                  length: -10
+          - id: thermo_scale_hum_major # vedi thermo_scale_temp_major
+            range_from: 20
+            range_to: 100
+            angle_range: 105
+            rotation: 285
+            ticks:
+                width: 2
+                count: 5        # 5 valori -> 20,40,60,80,100
+                length: 12
+                color: 0x3B82F6
+                major:
+                  stride: 1
+                  width: 3
+                  length: 14
+                  color: 0x3B82F6
+                  label_gap: 16
+          - range_from: 20
+            range_to: 100
+            angle_range: 105
+            rotation: 285
+            ticks:
+                width: 1
+                count: 17        # 17 valori -> 20,25,30,...,100
+                length: 6
+                color: 0x3B82F6
+    - obj: # copre il centro (pivot + origine lancette) di entrambi i meter, che condividono lo stesso centro
+        width: 120 # raggio 60
+        height: 120
+        radius: 50%
+        align: CENTER
+        pad_all: 0
+        border_width: 0
+        bg_color: 0x000000
+        bg_opa: COVER
+    - label: # unita' di misura temperatura. font +25% (montserrat_14 default -> 18, il piu' vicino tra le taglie built-in di LVGL)
+        align: CENTER
+        x: -40
+        y: 0
+        text_color: 0xFF0000
+        text_font: montserrat_24 # richiesto 25, ma i font built-in LVGL sono solo in taglie pari (8,10,...,48)
+        text: "T °C"
+    # zona basso-destra: selettore rotativo decorativo OFF/AUTO/ON (statico: la modalita' corrente
+    # e' gia' mostrata da shared_hvac_label altrove sullo schermo; qui e' solo la "legenda" fissa
+    # in stile manopola, occupa lo spazio vuoto tra i due archi principali, angoli 30°-120° circa)
+    - obj: # anello nero con bordo bianco, stile icona
+        id: thermo_mode_ring
+        width: 50 # raggio 25
+        height: 50
+        radius: 50%
+        align: CENTER
+        x: 26 # 11 + 15
+        y: 31 # 21 + 10
+        pad_all: 0
+        border_width: 2
+        border_color: 0xFFFFFF
+        bg_color: 0x000000
+        bg_opa: COVER
+        widgets:
+          - obj: # pallino bianco, stile indicatore "potenza": orbita attorno al centro dell'anello in base al modo climate (vedi on_value di hvac_mode in thermo_act.yaml)
+              id: thermo_mode_dot
+              width: 10
+              height: 10
+              align: CENTER
+              radius: 50%
+              pad_all: 0
+              border_width: 0
+              bg_color: 0xFFFFFF
+              bg_opa: COVER
+              x: 12 # raggio 17, angolo 45° (OFF)
+              y: 12
+    - label: # unita' di misura umidita'. Spostata QUI (dopo thermo_mode_ring) apposta: prima era coperta dall'anello, disegnato sopra perche' successivo nella lista widgets
+        align: CENTER
+        x: 30
+        y: -30
+        text_color: 0x3B82F6
+        text_font: montserrat_24 # vedi nota su T °C: 25 non e' una taglia built-in valida
+        text: "UR %"
+    - label: # OFF: angolo 40° (45-5). x/y = (50+larghezza_testo/2)*cos/sin(40°); larghezza "OFF" ~= 29.5px
+        align: CENTER
+        x: 70
+        y: 52
+        text_color: 0xFFFFFF
+        transform_rotation: 40
+        text: "OFF"
+    - label: # AUTO: angolo 50° (60-10). x/y = (50+larghezza_testo/2)*cos/sin(50°); larghezza "AUTO" ~= 41.25px
+        align: CENTER
+        x: 65
+        y: 64
+        text_color: 0xFFFFFF
+        transform_rotation: 50
+        text: "AUTO"
+    - label: # HEAT: angolo 65° (75-10; testo allineato al nome del modo climate). x/y = (50+larghezza_testo/2)*cos/sin(65°); larghezza "HEAT" ~= 39.2px
+        align: CENTER
+        x: 49
+        y: 73
+        text_color: 0xFFFFFF
+        transform_rotation: 65
+        text: "HEAT"
+

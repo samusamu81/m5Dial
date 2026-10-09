@@ -1,0 +1,71 @@
+obj: # thermo_view_seg14: 4 caselle SP/PV/true/UR%, font DSEG14
+  id: thermo_view_seg14
+  hidden: true
+  height: 240
+  width: 240
+  align: CENTER
+  pad_all: 0
+  border_width: 0
+  bg_color: 0x000000
+  bg_opa: COVER
+  widgets:
+    - label: # titolo, in alto a sinistra
+        id: lbl_sp_title
+        align: CENTER
+        x: -48
+        y: -70
+        text_color: 0xFFFFFF
+        text: "S.P."
+    - label: # valore, in alto a sinistra (rosso)
+        id: lbl_sp
+        align: CENTER
+        x: -48
+        y: -36
+        text_font: font_thermo_seg14
+        text_color: 0xFF0000
+        text: "--"
+    - label: # titolo, in alto a destra
+        id: lbl_pv_title
+        align: CENTER
+        x: 48
+        y: -70
+        text_color: 0xFFFFFF
+        text: "PV"
+    - label: # valore, in alto a destra (verde)
+        id: lbl_pv
+        align: CENTER
+        x: 48
+        y: -36
+        text_font: font_thermo_seg14
+        text_color: 0x22C55E
+        text: "--"
+    - label: # titolo, in basso a sinistra
+        id: lbl_true_title
+        align: CENTER
+        x: -48
+        y: 26
+        text_color: 0xFFFFFF
+        text: "true"
+    - label: # valore, in basso a sinistra (verde)
+        id: lbl_true
+        align: CENTER
+        x: -48
+        y: 60
+        text_font: font_thermo_seg14
+        text_color: 0x22C55E
+        text: "--"
+    - label: # titolo, in basso a destra
+        id: lbl_hum_title
+        align: CENTER
+        x: 48
+        y: 26
+        text_color: 0xFFFFFF
+        text: "UR%"
+    - label: # valore, in basso a destra (blu)
+        id: lbl_hum
+        align: CENTER
+        x: 48
+        y: 60
+        text_font: font_thermo_seg14
+        text_color: 0x3B82F6
+        text: "--"

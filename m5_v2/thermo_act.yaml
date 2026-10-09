@@ -1,0 +1,248 @@
+globals:
+  - id: thermo_sel # indice in thermo_list della valvola mostrata/comandata (swipe su/giu')
+    type: int
+    initial_value: '0'
+  - id: nsteps
+    type: int
+    initial_value: '0'
+  - id: low_cut # confini delle 3 zone colorate della vista Moderno (8.0-32.0 x10)
+    type: int
+    initial_value: '80'
+  - id: high_cut
+    type: int
+    initial_value: '80'
+
+font:
+  - file: "./fonts/DSEG14Classic-Regular.ttf" # font stile LCD 14 segmenti (sostituisce DSEG7), solo per i valori numerici
+    id: font_thermo_seg14
+    size: 34
+    bpp: 4
+    glyphs: "0123456789.-"
+  - file: "gfonts://Roboto@bold" # scaricato da Google Fonts in compilazione: vero grassetto
+    id: font_hvac_mode
+    size: 16 # +2pt rispetto al default (14)
+    bpp: 4
+
+script:
+  - id: "thermo_on_rotation"
+    mode: single
+    then:
+      - lambda: |-
+          id(nsteps) = -id(encoder).state;
+      - delay: 300ms
+      - lambda: |-
+          id(nsteps) += id(encoder).state;
+      - if:
+          condition:
+            lambda: 'return entity_sel(thermo_list, id(thermo_sel)) != nullptr;'
+          then:
+          - homeassistant.service:
+              service: climate.set_temperature
+              data:
+                entity_id: !lambda 'return entity_sel(thermo_list, id(thermo_sel))->climate;'
+                temperature: !lambda |-
+                  float t = entity_sel(thermo_list, id(thermo_sel))->sp;
+                  if (isnan(t)) return 21.0f;
+                  t = roundf(t * 2.0f) / 2.0f;
+
+                  t = t + id(nsteps) * 0.5;
+                  if (t < 7.0) t = 7.0;
+                  if (t > 30) t = 30.0;
+                  return t;
+  - id: update_thermo_zone_arcs # vista Moderno: 3 zone colorate (arancione/rosso/grigio) attorno a min/max(PV,SP)
+    then:
+      - lambda: |-
+          auto *e = entity_sel(thermo_list, id(thermo_sel));
+          float sp = e ? e->sp : NAN;
+          float pv = e ? e->pv : NAN;
+          if (isnan(sp)) sp = 21.0;
+          if (isnan(pv)) pv = sp;
+          if (sp < 8.0) sp = 8.0;
+          if (sp > 32.0) sp = 32.0;
+          if (pv < 8.0) pv = 8.0;
+          if (pv > 32.0) pv = 32.0;
+          id(low_cut) = (int) (std::min(sp, pv) * 10);
+          id(high_cut) = (int) (std::max(sp, pv) * 10);
+      - lvgl.indicator.update:
+          id: zone_arc_orange
+          start_value: 80
+          end_value: !lambda "return id(low_cut);"
+      - lvgl.indicator.update:
+          id: zone_arc_red
+          start_value: !lambda "return id(low_cut);"
+          end_value: !lambda "return id(high_cut);"
+      - lvgl.indicator.update:
+          id: zone_arc_grey
+          start_value: !lambda "return id(high_cut);"
+          end_value: 320
+  - id: thermo_cycle_next
+    then:
+      - lambda: |-
+          int n = id(view_style);
+          for (int i = 0; i < 4; i++) {
+            n = n + 1;
+            if (n > ${VIEW_STYLE_FACE}) n = ${VIEW_STYLE_ANALOG};
+            bool enabled = (n == ${VIEW_STYLE_ANALOG} && id(view_flag_analog)) ||
+                           (n == ${VIEW_STYLE_SEG14} && id(view_flag_seg14)) ||
+                           (n == ${VIEW_STYLE_MODERNO} && id(view_flag_moderno)) ||
+                           (n == ${VIEW_STYLE_FACE} && id(view_flag_face));
+            if (enabled) break;
+          }
+          id(view_style) = n;
+      - script.execute: thermo_apply_view_style
+  - id: thermo_apply_view_style # separato da thermo_cycle_next per poter essere richiamato anche al boot/page-load (vedi on_load in thermo_page.yaml)
+    then:
+      - lvgl.widget.update:
+          id: thermo_view_analog
+          hidden: !lambda 'return id(view_style) != ${VIEW_STYLE_ANALOG};'
+      - lvgl.widget.update:
+          id: thermo_view_seg14
+          hidden: !lambda 'return id(view_style) != ${VIEW_STYLE_SEG14};'
+      - lvgl.widget.update:
+          id: thermo_view_moderno
+          hidden: !lambda 'return id(view_style) != ${VIEW_STYLE_MODERNO};'
+      - lvgl.widget.update:
+          id: thermo_view_face
+          hidden: !lambda 'return id(view_style) != ${VIEW_STYLE_FACE};'
+      # shared_hvac_label: visibile solo su Analog/14SEG (le uniche viste gia' disegnate),
+      # riposizionato/ricolorato per adattarsi al layout di ciascuna
+      - if:
+          condition:
+            lambda: 'return id(view_style) == ${VIEW_STYLE_ANALOG};'
+          then:
+            # nascosto su Analog: sovrapposto al centro dei meter (lancette/pivot), ridondante
+            # con la legenda OFF/AUTO/ON dell'anello decorativo (thermo_mode_ring)
+            - lvgl.widget.update:
+                id: shared_hvac_label
+                hidden: true
+          else:
+            - if:
+                condition:
+                  lambda: 'return id(view_style) == ${VIEW_STYLE_SEG14};'
+                then:
+                  - lvgl.widget.update:
+                      id: shared_hvac_label
+                      hidden: false
+                      y: 0
+                      bg_opa: TRANSP
+                      text_color: 0xFFFFFF
+                else:
+                  - if:
+                      condition:
+                        lambda: 'return id(view_style) == ${VIEW_STYLE_MODERNO};'
+                      then:
+                        - lvgl.widget.update: # bianca senza sfondo, centrata su tutto (sopra il cerchio azzurro dell'umidita'), come su Seg14
+                            id: shared_hvac_label
+                            hidden: false
+                            y: 0
+                            bg_opa: TRANSP
+                            text_color: 0xFFFFFF
+                      else:
+                        - lvgl.widget.update:
+                            id: shared_hvac_label
+                            hidden: true
+  - id: thermo_mode_next
+    then:
+      - if:
+          condition:
+            lambda: 'return entity_sel(thermo_list, id(thermo_sel)) != nullptr;'
+          then:
+            - homeassistant.service:
+                service: climate.set_hvac_mode
+                data:
+                  entity_id: !lambda 'return entity_sel(thermo_list, id(thermo_sel))->climate;'
+                  hvac_mode: !lambda |-
+                    std::string cur = entity_sel(thermo_list, id(thermo_sel))->mode;
+                    if (cur == "off") return "auto";
+                    if (cur == "auto") return "heat";
+                    return "off";
+
+  - id: thermo_entity_step # swipe su/giu': valvola successiva (+1) / precedente (-1), ridisegna subito dall'ultimo stato noto
+    parameters:
+      dir: int
+    then:
+      - lambda: |-
+          int n = thermo_list.size();
+          if (n <= 1) return;
+          id(thermo_sel) = entity_step(id(thermo_sel), n, dir);
+          id(thermo_refresh).execute();
+          id(entity_toast).execute(thermo_list[id(thermo_sel)].name);
+
+  - id: thermo_refresh # ridisegna tutte le viste dalla valvola selezionata (chiamato dai sensori e al cambio valvola)
+    mode: restart
+    then:
+      - if: # lista vuota: niente da mostrare
+          condition:
+            lambda: 'return entity_sel(thermo_list, id(thermo_sel)) != nullptr;'
+          then:
+          - script.execute: update_thermo_zone_arcs
+          - lvgl.indicator.update:
+              id: needle_true
+              value: !lambda 'return clampf(entity_sel(thermo_list, id(thermo_sel))->t_true, 8.0f, 32.0f) * 10;'
+          - lvgl.arc.update: # vista Moderno: anello esterno verde
+              id: arc_moderno_true
+              value: !lambda 'return clampf(entity_sel(thermo_list, id(thermo_sel))->t_true, 8.0f, 32.0f) * 10;'
+          - lvgl.indicator.update:
+              id: needle_pv
+              value: !lambda 'return clampf(entity_sel(thermo_list, id(thermo_sel))->pv, 8.0f, 32.0f) * 10;'
+          - lvgl.indicator.update:
+              id: needle_sp
+              value: !lambda 'return clampf(entity_sel(thermo_list, id(thermo_sel))->sp, 8.0f, 32.0f) * 10;'
+          - lvgl.indicator.update:
+              id: needle_humidity
+              value: !lambda 'return clampf(entity_sel(thermo_list, id(thermo_sel))->hum, 20.0f, 100.0f);'
+          - lvgl.label.update:
+              id: lbl_true
+              text: !lambda 'return thermo_fmt(entity_sel(thermo_list, id(thermo_sel))->t_true, "%.1f");'
+          - lvgl.label.update:
+              id: lbl_pv
+              text: !lambda 'return thermo_fmt(entity_sel(thermo_list, id(thermo_sel))->pv, "%.1f");'
+          - lvgl.label.update:
+              id: lbl_sp
+              text: !lambda 'return thermo_fmt(entity_sel(thermo_list, id(thermo_sel))->sp, "%.1f");'
+          - lvgl.label.update:
+              id: lbl_hum
+              text: !lambda 'return thermo_fmt(entity_sel(thermo_list, id(thermo_sel))->hum, "%.0f");' # niente simbolo %: DSEG non lo ha, il titolo "UR%" lo indica gia'
+          - lvgl.label.update: # vista Moderno: cerchio azzurro, qui il simbolo % ha senso (font normale, non DSEG)
+              id: lbl_rh_moderno
+              text: !lambda 'return thermo_fmt(entity_sel(thermo_list, id(thermo_sel))->hum, "%.0f%%");'
+          - lvgl.label.update:
+              id: shared_hvac_label
+              text: !lambda |-
+                std::string s = entity_sel(thermo_list, id(thermo_sel))->mode;
+                if (s.empty()) s = "--";
+                for (auto &c : s) c = toupper(c);
+                return s;
+          - lvgl.widget.update: # thermo_mode_dot: orbita nell'anello, raggio 17. OFF=45°(12,12), AUTO=72.5°(5,16), HEAT=90°(0,17)
+              id: thermo_mode_dot
+              x: !lambda |-
+                std::string s = entity_sel(thermo_list, id(thermo_sel))->mode;
+                if (s == "auto") return 5;
+                if (s == "heat") return 0;
+                return 12; // off
+              y: !lambda |-
+                std::string s = entity_sel(thermo_list, id(thermo_sel))->mode;
+                if (s == "auto") return 16;
+                if (s == "heat") return 17;
+                return 12; // off
+
+esphome:
+  on_boot:
+    - priority: -10
+      then:
+        - lambda: |-
+            // le label delle major tick (LV_PART_INDICATOR) non sono esposte dallo schema
+            // ESPHome del meter/scale: color qui e' l'unico modo per colorarle (di default
+            // il tema le rende grigie)
+            lv_obj_set_style_text_color(id(thermo_scale_temp_major), lv_color_hex(0xFF0000), LV_PART_INDICATOR);
+            lv_obj_set_style_text_color(id(thermo_scale_hum_major), lv_color_hex(0x3B82F6), LV_PART_INDICATOR);
+            ESP_LOGI("thermo", "%d valvole registrate", (int) thermo_list.size());
+        - delay: 1s
+        - if:
+            condition:
+              lambda: 'return !thermo_list.empty();'
+            then:
+              - homeassistant.service:
+                  service: homeassistant.update_entity
+                  data:
+                    entity_id: !lambda 'return entity_join(thermo_list, [](ThermoEntry &e) { return e.climate; });'

@@ -1,0 +1,138 @@
+obj: # thermo_view_moderno: 3 anelli concentrici (270°, gap 90° in basso, stile "climate") + cerchio umidita' al centro
+  id: thermo_view_moderno
+  hidden: true
+  height: 240
+  width: 240
+  align: CENTER
+  pad_all: 0
+  border_width: 0
+  bg_color: 0x000000
+  bg_opa: COVER
+  widgets:
+    - arc: # anello esterno (230px): true temperature, riempimento verde continuo
+        id: arc_moderno_true
+        align: CENTER
+        width: 230
+        height: 230
+        start_angle: 135
+        end_angle: 45 # 270°, gap 90° in basso (orientamento "climate")
+        min_value: 80 # 8.0-32.0°C x10
+        max_value: 320
+        value: 80
+        adjustable: false
+        arc_width: 10
+        arc_opa: TRANSP
+        arc_rounded: false
+        indicator:
+          arc_width: 10
+          arc_color: 0x22C55E
+          arc_rounded: true
+        knob:
+          bg_opa: TRANSP
+          border_width: 0
+          pad_all: 0
+    - meter: # anello medio (190px): 3 zone colorate, 8->min(PV,SP) arancione, min->max rosso, max->32 grigio
+        width: 190
+        height: 190
+        align: CENTER
+        bg_opa: TRANSP
+        border_width: 0 # sopprime il bordo bianco di default LVGL (LIGHT_STYLE in meter.py), bg_opa:TRANSP non basta
+        scales:
+          - range_from: 80
+            range_to: 320
+            angle_range: 270
+            rotation: 135
+            indicators:
+              - arc: # arancione: zona "fredda", da 8°C al minore tra PV e SP
+                  id: zone_arc_orange
+                  width: 10
+                  color: 0xFF8033
+                  start_value: 80
+                  end_value: 80
+              - arc: # rosso: scarto tra PV e SP (finche' non si raggiunge il setpoint)
+                  id: zone_arc_red
+                  width: 10
+                  color: 0xFF0000
+                  start_value: 80
+                  end_value: 80
+              - arc: # grigio scuro: zona "oltre" (non usata), dal maggiore tra PV e SP a 32°C
+                  id: zone_arc_grey
+                  width: 10
+                  color: 0x404040
+                  start_value: 80
+                  end_value: 80
+    - meter: # solo tacche/etichette (240px, appena fuori dall'anello esterno): 8,12,...,32 ogni 4 + minori ogni 2
+        width: 240
+        height: 240
+        align: CENTER
+        bg_opa: TRANSP
+        border_width: 0 # sopprime il bordo bianco di default LVGL (LIGHT_STYLE in meter.py), bg_opa:TRANSP non basta
+        text_color: 0xFFFFFF
+        scales:
+          - range_from: 8
+            range_to: 32
+            angle_range: 270
+            rotation: 135
+            ticks:
+              width: 2
+              count: 7 # 8,12,16,20,24,28,32 (ogni 4)
+              length: 12
+              color: 0xFFFFFF
+              major:
+                stride: 1
+                width: 3
+                length: 14
+                color: 0xFFFFFF
+                label_gap: 16
+          - range_from: 8
+            range_to: 32
+            angle_range: 270
+            rotation: 135
+            ticks:
+              width: 1
+              count: 13 # segnaposti ogni 2 (8,10,...,32)
+              length: 6
+              color: 0xFFFFFF
+    - meter: # cerchio azzurro scuro al centro: umidita' relativa, pie chart simmetrico (due mezzi-archi da top a bottom)
+        id: thermo_moderno_rh_circle
+        width: 130
+        height: 130
+        align: CENTER
+        bg_opa: TRANSP
+        border_width: 0 # sopprime il bordo bianco di default LVGL (LIGHT_STYLE in meter.py), bg_opa:TRANSP non basta
+        scales:
+          - range_from: 0
+            range_to: 100
+            angle_range: 180
+            rotation: 270 # 0 in alto (ore 12), 100 in basso (ore 6), senso orario
+            indicators:
+              - arc: # meta' destra: cresce in senso orario da top a bottom (0 -> 100)
+                  id: rh_arc_right
+                  width: 65 # = raggio: nessun buco, effetto "torta" pieno
+                  color: 0x0C4A6E # azzurro scuro
+                  rounded: false
+                  start_value: 0
+                  end_value: 66 # DEBUG: valore fisso - vedi thermo_act.yaml temp_humidity commentato
+          - range_from: 100 # scala "duale" invertita: 0 in alto (ore 12), 50 a ore 9, 100 in basso (ore 6)
+            range_to: 0 # LVGL (lv_map) accetta range invertito: mappa 100->90° (ore 6), 0->270° (ore 12)
+            angle_range: 180
+            rotation: 90
+            indicators:
+              - arc: # meta' sinistra: cresce in senso antiorario da top a bottom (0 -> 100)
+                  id: rh_arc_left
+                  width: 65
+                  color: 0x0C4A6E
+                  rounded: false
+                  # una sezione si disegna sempre in senso orario da start a end: per riempire
+                  # da ore 12 verso sinistra fino a v servono start=v, end=0 (ordine invertito)
+                  start_value: 66 # DEBUG: valore fisso, speculare a rh_arc_right
+                  end_value: 0
+    - label:
+        id: lbl_rh_moderno
+        align: CENTER
+        y: -25
+        text_color: 0xFFFFFF
+        text: "--%"
+    # shared_hvac_label (definita in thermo_page.yaml) si sovrappone qui al centro di tutto,
+    # sopra il cerchio azzurro: per lo stile Moderno e' bianca senza sfondo, come su Seg14
+    # (vedi thermo_act.yaml, thermo_cycle_next)

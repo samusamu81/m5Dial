@@ -1,0 +1,74 @@
+# Un player della pagina Musica. Incluso una volta per player da m5Dial_v2.yaml:
+#   music_N: !include {file: m5_v2/music_entity.yaml, vars: {idx: N, name: "...", player: media_player.x}}
+# Stesso schema di thermo_entity.yaml: ogni attributo finisce nella voce di music_list; se il player
+# e' quello selezionato si aggiorna la pagina.
+
+esphome:
+  on_boot:
+    - priority: 800
+      then:
+        - lambda: |-
+            MusicEntry e;
+            e.idx = ${idx};
+            e.name = "${name}";
+            e.entity = "${player}";
+            entity_register(music_list, e);
+
+sensor:
+  - platform: homeassistant
+    id: music_duration_${idx} # durata del brano in secondi: base della percentuale di avanzamento
+    entity_id: ${player}
+    attribute: media_duration
+    on_value:
+      - lambda: 'if (auto *e = entity_find(music_list, ${idx})) e->duration = x;'
+  - platform: homeassistant
+    id: music_pos_${idx} # media_position (s): HA la aggiorna solo a play/pausa/seek, il resto si estrapola con media_position_updated_at
+    entity_id: ${player}
+    attribute: media_position
+    on_value:
+      - lambda: 'if (auto *e = entity_find(music_list, ${idx})) e->pos = x;'
+
+text_sensor:
+  - platform: homeassistant
+    id: music_pos_upd_${idx} # istante (UTC) a cui si riferisce media_position
+    entity_id: ${player}
+    attribute: media_position_updated_at
+    on_value:
+      - lambda: 'if (auto *e = entity_find(music_list, ${idx})) e->pos_upd = x;'
+  - platform: homeassistant
+    id: music_track_${idx} # brano corrente: al cambio il contatore riparte dal tempo del brano
+    entity_id: ${player}
+    attribute: media_content_id
+    on_value:
+      - lambda: |-
+          if (auto *e = entity_find(music_list, ${idx})) e->track = x;
+          if (entity_is_sel(music_list, id(music_sel), ${idx})) id(music_cnt_offset) = 0;
+  - platform: homeassistant
+    id: music_title_${idx}
+    entity_id: ${player}
+    attribute: media_title
+    on_value:
+      - lambda: |-
+          if (auto *e = entity_find(music_list, ${idx})) e->title = x;
+          if (entity_is_sel(music_list, id(music_sel), ${idx})) id(music_show_title).execute();
+  - platform: homeassistant
+    id: music_state_${idx} # playing/paused/idle/off...: spia del pulsante play/pause in vista Analog
+    entity_id: ${player}
+    on_value:
+      - lambda: |-
+          if (auto *e = entity_find(music_list, ${idx})) e->state = x;
+          if (entity_is_sel(music_list, id(music_sel), ${idx})) id(music_show_state).execute();
+  - platform: homeassistant
+    id: music_volume_${idx}
+    entity_id: ${player}
+    attribute: volume_level
+    on_value:
+      - lambda: |-
+          // "None"/vuoto (player spento): atof restituisce 0, quindi si controlla che inizi con una cifra
+          if (x.empty() || !isdigit((unsigned char) x[0])) return;
+          float v = atof(x.c_str());
+          if (auto *e = entity_find(music_list, ${idx})) e->volume = v;
+          if (entity_is_sel(music_list, id(music_sel), ${idx})) {
+            id(music_vol) = v;
+            id(music_refresh_view).execute();
+          }

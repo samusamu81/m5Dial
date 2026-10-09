@@ -1,0 +1,87 @@
+# Una luce RGBW delle pagine Luci RGBW/HWB (selezione condivisa). Incluso una volta per luce da m5Dial_v2.yaml:
+#   light_N: !include {file: m5_v2/light_entity.yaml, vars: {idx: N, name: "...", light: light.x}}
+# Ogni attributo HA viene salvato nella voce di light_list; se la luce e' quella selezionata viene
+# copiato nei globali "canonici" (rgbw_can_*, bright_can, rgb_ha_*, ...) e si richiama lo stesso
+# refresh della v1 (light_common.yaml), attributo per attributo come prima.
+
+esphome:
+  on_boot:
+    - priority: 800
+      then:
+        - lambda: |-
+            LightEntry e;
+            e.idx = ${idx};
+            e.name = "${name}";
+            e.entity = "${light}";
+            entity_register(light_list, e);
+
+text_sensor:
+  - platform: homeassistant
+    id: light_state_${idx} # on/off: i canali locali NON vengono toccati, solo gli indicatori di colore reale seguono lo stato
+    entity_id: ${light}
+    on_value:
+      - lambda: |-
+          if (auto *e = entity_find(light_list, ${idx})) e->on = (x != "off");
+          if (entity_is_sel(light_list, id(light_sel), ${idx})) {
+            id(rgbw_light_on) = (x != "off");
+            id(hwb_light_on) = (x != "off");
+            id(light_on_state_change).execute();
+          }
+
+  - platform: homeassistant
+    id: light_rgbw_${idx} # rgbw_color canonico
+    entity_id: ${light}
+    attribute: rgbw_color
+    on_value:
+      - lambda: |-
+          int r = 0, g = 0, b = 0, w = 0;
+          // "None" (luce off): lo sscanf fallisce, restano gli ultimi valori noti
+          if (sscanf(x.c_str(), "(%d, %d, %d, %d)", &r, &g, &b, &w) != 4) return;
+          if (auto *e = entity_find(light_list, ${idx})) { e->can_r = r; e->can_g = g; e->can_b = b; e->can_w = w; }
+          if (entity_is_sel(light_list, id(light_sel), ${idx})) {
+            id(rgbw_can_r) = r; id(rgbw_can_g) = g; id(rgbw_can_b) = b; id(rgbw_can_w) = w;
+            id(light_on_color_change).execute();
+          }
+
+  - platform: homeassistant
+    id: light_rgb_${idx} # rgb_color calcolato da HA (W incluso), solo per il pallino centrale
+    entity_id: ${light}
+    attribute: rgb_color
+    on_value:
+      - lambda: |-
+          int r = 0, g = 0, b = 0;
+          if (sscanf(x.c_str(), "(%d, %d, %d)", &r, &g, &b) != 3) return; // "None" a luce spenta: resta l'ultimo noto
+          if (auto *e = entity_find(light_list, ${idx})) { e->rgb_r = r; e->rgb_g = g; e->rgb_b = b; }
+          if (entity_is_sel(light_list, id(light_sel), ${idx})) {
+            id(rgb_ha_r) = r; id(rgb_ha_g) = g; id(rgb_ha_b) = b;
+            id(rgbw_refresh_view).execute();
+            id(hwb_refresh_view).execute();
+          }
+
+  - platform: homeassistant
+    id: light_hs_${idx} # hue come la calcola HA, a prescindere dal color_mode
+    entity_id: ${light}
+    attribute: hs_color
+    on_value:
+      - lambda: |-
+          float h = 0, s = 0;
+          if (sscanf(x.c_str(), "(%f, %f)", &h, &s) != 2) return; // "None" (luce off): resta l'ultima hue nota
+          if (auto *e = entity_find(light_list, ${idx})) e->hue = (int) roundf(h);
+          if (entity_is_sel(light_list, id(light_sel), ${idx})) {
+            id(hwb_can_h) = (int) roundf(h);
+            id(hwb_refresh_view).execute();
+          }
+
+sensor:
+  - platform: homeassistant
+    id: light_bright_${idx} # brightness canonica 0-255
+    entity_id: ${light}
+    attribute: brightness
+    on_value:
+      - lambda: |-
+          if (std::isnan(x)) return;
+          if (auto *e = entity_find(light_list, ${idx})) e->bright = (int) x;
+          if (entity_is_sel(light_list, id(light_sel), ${idx})) {
+            id(bright_can) = (int) x;
+            id(light_on_color_change).execute();
+          }

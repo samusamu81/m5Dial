@@ -1,0 +1,139 @@
+obj: # music_view_moderno: copertina tonda (in fondo) + arc volume + prev/play-pause/next
+  id: music_view_moderno
+  hidden: false # stile di boot
+  height: 240
+  width: 240
+  align: CENTER
+  pad_all: 0
+  border_width: 0
+  bg_color: 0x000000 # sfondo nero
+  bg_opa: COVER
+  widgets:
+    # Ordine = profondita': copertina (in fondo), anello nero che la rende tonda, arco, pulsanti (in cima)
+    - obj: # copertina 100x100 QUADRATA (Music Assistant -> BMP via HA, vedi music_act.yaml), alzata a y=-15 (massimo prima che gli angoli tocchino l'arco)
+        # niente radius/clip_corner: il ritaglio tondo LVGL alloca un layer che senza PSRAM fallisce -> watchdog/rollback
+        width: 100
+        height: 100
+        align: CENTER
+        y: -15
+        pad_all: 0
+        border_width: 0
+        bg_opa: TRANSP
+        scrollable: false
+        clickable: false
+        widgets:
+          - image:
+              id: music_cover_img
+              align: CENTER
+              src: music_cover_placeholder # mai l'online_image da boot: la sostituisce on_download_finished (music_act.yaml)
+    - obj: # anello nero sopra la copertina: copre gli angoli e la fa sembrare tonda (diametro interno 100) senza clip_corner
+        width: 142 # ~ diagonale del quadrato 100 (141.4)
+        height: 142
+        radius: 50%
+        align: CENTER
+        y: -15
+        pad_all: 0
+        bg_opa: TRANSP
+        border_width: 21 # (142 - 100) / 2
+        border_color: 0x000000
+        scrollable: false
+        clickable: false
+    - label: # titolo del brano, bianco, font piccolo (montserrat 14 di default, come le scritte ON/OFF), sopra la copertina
+        id: lbl_music_moderno_title # largo 110px: a y=-80 l'arco del volume lascia ~118px; i titoli lunghi scorrono
+        align: CENTER
+        y: -80
+        width: 110
+        long_mode: SCROLL_CIRCULAR
+        text_align: CENTER
+        text_color: 0xFFFFFF
+        text: ""
+    - arc: # volume, 270 gradi (start 135 -> end 45, gap in basso); encoder su/giu lo pilota
+        id: volume_arc
+        align: CENTER
+        width: 220
+        height: 220
+        start_angle: 135
+        end_angle: 45
+        min_value: 0
+        max_value: 100
+        value: 0
+        adjustable: false # solo encoder (music_on_clockwise/anticlockwise), niente drag touch
+        arc_width: 12
+        arc_rounded: false
+        indicator:
+          arc_width: 12
+          arc_color: 0xFF9900
+          arc_rounded: true
+    - arc: # avanzamento del brano (viola), nella corona libera fuori dall'arco del volume (r 110-120): 270 gradi come il volume, parte dove il volume e' a zero
+        id: music_progress_arc
+        align: CENTER
+        width: 238 # bordo esterno a r=119, dentro lo schermo (r=120)
+        height: 238
+        start_angle: 135 # stessi angoli di volume_arc: gap di 90 gradi in basso
+        end_angle: 45
+        min_value: 0
+        max_value: 1000 # per mille: avanzamento fluido anche su brani lunghi
+        value: 0
+        adjustable: false
+        arc_width: 5 # corona r 114-119, staccata di ~4px dall'arco del volume (r 98-110)
+        arc_opa: TRANSP # nessuna traccia di fondo: si vede solo la parte gia' ascoltata
+        arc_rounded: false
+        indicator:
+          arc_width: 5
+          arc_color: 0x9333EA # viola
+          arc_rounded: false
+        knob:
+          bg_opa: TRANSP
+          border_width: 0
+          pad_all: 0
+    - button: # prev, cerchio a sinistra del centro
+        id: btn_music_prev
+        width: 50
+        height: 50
+        radius: 50%
+        align: CENTER
+        x: -80 # allargato (era -40): lascia libera la copertina, puo' sovrapporsi all'arco del volume
+        y: 0
+        bg_color: 0x333333
+        widgets:
+          - label:
+              text: "${mdi_skip_previous_circle_outline}"
+              text_font: big_font
+              text_color: 0xFFFFFF
+              align: CENTER
+        on_click:
+          - script.execute: music_prev_track
+    - button: # next, cerchio a destra del centro
+        id: btn_music_next
+        width: 50
+        height: 50
+        radius: 50%
+        align: CENTER
+        x: 80 # allargato (era 40)
+        y: 0
+        bg_color: 0x333333
+        widgets:
+          - label:
+              text: "${mdi_skip_next_circle_outline}"
+              text_font: big_font
+              text_color: 0xFFFFFF
+              align: CENTER
+        on_click:
+          - script.execute: music_next_track
+    - button: # play/pause, in basso al centro: stesso effetto del click della ghiera su questa pagina
+        id: btn_music_play_pause
+        width: 60
+        height: 60
+        radius: 50%
+        align: CENTER
+        x: 0
+        y: 75
+        bg_color: 0xFF9900
+        widgets:
+          - label:
+              text: "${mdi_play_pause}" # icona play/pausa (era solo pausa)
+              text_font: big_font
+              text_color: 0x000000
+              align: CENTER
+        on_click:
+          - script.execute: music_play_pause

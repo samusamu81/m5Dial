@@ -1,0 +1,165 @@
+obj: # light_rgbw_view_analog: 1 scala unica 270°, 4 lancette colorate (R/G/B/W) sullo stesso quadrante 0-256,
+  id: light_rgbw_view_analog # gap 90° in basso (rotation 135 -> 45), come le altre viste "moderno" del progetto
+  hidden: false # stile di boot
+  height: 240
+  width: 240
+  align: CENTER
+  pad_all: 0
+  border_width: 0
+  bg_color: 0x000000
+  bg_opa: COVER
+  widgets:
+    - meter: # scala unica 0-256, 270°, 4 lancette R/G/B/W sovrapposte
+        width: 240
+        height: 240
+        align: CENTER
+        bg_opa: TRANSP
+        border_width: 0
+        text_color: 0xFFFFFF
+        scales:
+          - range_from: 0
+            range_to: 256
+            angle_range: 270
+            rotation: 135
+            ticks:
+              width: 1
+              count: 33 # 32 intervalli da 8 (minor tick ogni 8, raddoppiato da 16)
+              length: 8
+              color: 0xFFFFFF
+              major:
+                stride: 4 # ogni 4 minor = 32 unita': marker a 0,32,64...256 (raddoppiato da 64)
+                width: 2
+                length: 14
+                color: 0xFFFFFF
+                label_gap: 6
+            indicators:
+              - line:
+                  id: rgbw_needle_r
+                  width: 3
+                  color: 0xFF0000
+                  length: -15 # r_mod deprecato in LVGL 9.x: -15 equivale a "raggio scala + 15" (stesso significato)
+                  value: 0
+              - line:
+                  id: rgbw_needle_g
+                  width: 3
+                  color: 0x22C55E
+                  length: -15
+                  value: 0
+              - line:
+                  id: rgbw_needle_b
+                  width: 3
+                  color: 0x3B82F6
+                  length: -15
+                  value: 0
+              - line:
+                  id: rgbw_needle_w
+                  width: 3
+                  color: 0xFFFFFF
+                  length: -15
+                  value: 0
+    - obj: # cerchio centrale nero: maschera il punto di convergenza delle 4 lancette, tap passa agli hotspot sotto
+        width: 120
+        height: 120
+        radius: 50%
+        align: CENTER
+        pad_all: 0
+        border_width: 0
+        bg_color: 0x000000
+        bg_opa: COVER
+        scrollable: false # I/O ora fuori dai bound (y:94 > mezza altezza 60): senza questo LVGL mostra una scrollbar
+        widgets:
+          # Bottoni indicatore canale selezionato (solo visivi, dietro alle label): nero/bordo bianco se non
+          # selezionato, grigio se selezionato. Stato "checked" sincronizzato da rgbw_update_selection.
+          - obj: {id: btn_rgbw_analog_r, width: 34, height: 34, radius: 50%, align: CENTER, x: -30, y: -30, pad_all: 0, border_width: 2, border_color: 0xFFFFFF, bg_color: 0x000000, bg_opa: COVER, checked: {bg_color: 0x808080}}
+          - obj: {id: btn_rgbw_analog_g, width: 34, height: 34, radius: 50%, align: CENTER, x: 30, y: -30, pad_all: 0, border_width: 2, border_color: 0xFFFFFF, bg_color: 0x000000, bg_opa: COVER, checked: {bg_color: 0x808080}}
+          - obj: {id: btn_rgbw_analog_b, width: 34, height: 34, radius: 50%, align: CENTER, x: -30, y: 30, pad_all: 0, border_width: 2, border_color: 0xFFFFFF, bg_color: 0x000000, bg_opa: COVER, checked: {bg_color: 0x808080}}
+          - obj: {id: btn_rgbw_analog_w, width: 34, height: 34, radius: 50%, align: CENTER, x: 30, y: 30, pad_all: 0, border_width: 2, border_color: 0xFFFFFF, bg_color: 0x000000, bg_opa: COVER, checked: {bg_color: 0x808080}}
+          - label: {id: lbl_rgbw_analog_r, align: CENTER, x: -30, y: -30, text_color: 0x808080, text_font: font_rgbw_letter, text: "R"} # colore reale applicato da light_rgbw_state_txt al primo sync HA
+          - label: {id: lbl_rgbw_analog_g, align: CENTER, x: 30, y: -30, text_color: 0x808080, text_font: font_rgbw_letter, text: "G"}
+          - label: {id: lbl_rgbw_analog_b, align: CENTER, x: -30, y: 30, text_color: 0x808080, text_font: font_rgbw_letter, text: "B"}
+          - label: {id: lbl_rgbw_analog_w, align: CENTER, x: 30, y: 30, text_color: 0x808080, text_font: font_rgbw_letter, text: "W"}
+    # Hotspot di tap: con la scala unica non esistono piu' 4 meter fisicamente separati a cui agganciare
+    # on_click per quadrante, quindi la selezione canale resta affidata a 4 obj trasparenti dedicati,
+    # uno per quadrante dello schermo, posizionati per ultimi (= in cima) cosi' da vincere la ricerca
+    # hit-test rispetto al meter/cerchio sottostanti.
+    - obj: # hotspot R: quadrante alto-sinistra (NW)
+        width: 120
+        height: 120
+        x: -60
+        y: -60
+        align: CENTER
+        pad_all: 0
+        border_width: 0
+        bg_opa: TRANSP
+        on_click:
+          - lambda: 'id(rgbw_selected_channel) = (id(rgbw_selected_channel) == 0) ? -1 : 0;'
+          - script.execute: rgbw_update_selection
+    - obj: # hotspot G: quadrante alto-destra (NE)
+        width: 120
+        height: 120
+        x: 60
+        y: -60
+        align: CENTER
+        pad_all: 0
+        border_width: 0
+        bg_opa: TRANSP
+        on_click:
+          - lambda: 'id(rgbw_selected_channel) = (id(rgbw_selected_channel) == 1) ? -1 : 1;'
+          - script.execute: rgbw_update_selection
+    - obj: # hotspot B: quadrante basso-sinistra (SW)
+        width: 120
+        height: 120
+        x: -60
+        y: 60
+        align: CENTER
+        pad_all: 0
+        border_width: 0
+        bg_opa: TRANSP
+        on_click:
+          - lambda: 'id(rgbw_selected_channel) = (id(rgbw_selected_channel) == 2) ? -1 : 2;'
+          - script.execute: rgbw_update_selection
+    - obj: # hotspot W: quadrante basso-destra (SE)
+        width: 120
+        height: 120
+        x: 60
+        y: 60
+        align: CENTER
+        pad_all: 0
+        border_width: 0
+        bg_opa: TRANSP
+        on_click:
+          - lambda: 'id(rgbw_selected_channel) = (id(rgbw_selected_channel) == 3) ? -1 : 3;'
+          - script.execute: rgbw_update_selection
+    # Interruttore on/off decorativo (idea presa da thermo_mode_ring/thermo_mode_dot in thermo_view_analog.yaml),
+    # a centro pagina, abbassato di 60px rispetto al centro. Widget di pagina (non figlio di "cerchio centrale"):
+    # dentro quel contenitore da 120x120 veniva clippato ai suoi bound (meta' altezza 60 < y:60/94 usati qui),
+    # spostato qui = ultimo della lista = disegnato per primissimo in cima, e non piu' tagliato.
+    - obj: # anello nero con bordo bianco, stile icona interruttore
+        id: rgbw_switch_ring
+        width: 50 # raggio 25
+        height: 50
+        radius: 50%
+        align: CENTER
+        y: 70
+        pad_all: 0
+        border_width: 2
+        border_color: 0xFFFFFF
+        bg_color: 0x000000
+        bg_opa: COVER
+        clickable: false # decorativo: non deve intercettare i tap destinati agli hotspot B/W sottostanti
+        widgets:
+          - obj: # pallino bianco: orbita raggio 17, angolo 45°(off, destra) / 135°(on, sinistra) - vedi light_rgbw_state_txt
+              id: rgbw_switch_dot
+              width: 10
+              height: 10
+              align: CENTER
+              radius: 50%
+              pad_all: 0
+              border_width: 0
+              bg_color: 0xFFFFFF
+              bg_opa: COVER
+              clickable: false
+              x: 12 # raggio 17, angolo 45° (OFF, stato iniziale di boot)
+              y: 12
+    - label: {align: CENTER, x: 20, y: 110,  text_color: 0xFFFFFF, clickable: false, text: "OFF"} # legenda off, ore 5:30
+    - label: {align: CENTER, x: -20, y: 110, text_color: 0xFFFFFF, clickable: false, text: "ON"} # legenda on, ore 6:30

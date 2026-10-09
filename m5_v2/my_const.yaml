@@ -1,0 +1,40 @@
+substitutions:
+  # Entita' HA: niente costanti qui, le liste per dominio sono in m5Dial_v2.yaml (packages *_entity.yaml)
+
+  # Font Icons
+  mdi_play_pause: "\U000F040E"
+  mdi_skip_next_circle_outline: "\U000F0662"
+  mdi_skip_previous_circle_outline: "\U000F0664"
+
+
+  PAGE_CLOCK_ID: "0"
+  PAGE_THERMO_ID: "10"
+  PAGE_LIGHT_RGBW_ID: "20"
+  PAGE_LIGHT_HWB_ID: "25"
+  PAGE_MUSIC_ID: "30"
+  PAGE_SETTINGS_ID: "40"
+  PAGE_TAG_ID: "45" # pagina NFC, fuori dal giro di swipe
+
+  # Pagina tag NFC
+  TAG_HA_TIMEOUT: "3s" # attesa massima della risposta di HA (azione tag_result)
+  TAG_SHOW_TIME: "4s"  # quanto resta visibile la pagina prima di tornare indietro
+
+  # Stile di vista, condiviso da tutte le pagine di contenuto (griglia 5 pagine x 4 stili)
+  VIEW_STYLE_ANALOG: "1"
+  VIEW_STYLE_SEG14: "2"
+  VIEW_STYLE_MODERNO: "3"
+  VIEW_STYLE_FACE: "4"
+
+  # Salvaschermo: i tempi sono entita' number regolabili da HA (screensaver.yaml)
+
+  # Luminosita' schermo da encoder (pagina Settings), in frazione 0-1 dello slider HA (prima della gamma)
+  BACKLIGHT_MIN: "0.10"  # la ghiera non scende sotto: lo schermo non si spegne mai da qui
+  BACKLIGHT_STEP: "0.05" # per scatto dell'encoder
+  BACKLIGHT_RESCUE: "50%"         # pressione molto lunga della ghiera: luminosita' di emergenza
+  BACKLIGHT_RESCUE_PRESS: "5s"    # durata minima della pressione per la luminosita' di emergenza (v1: 3s)
+
+  # Ghiera: tenuta tra STYLE_PRESS_MIN e BACKLIGHT_RESCUE_PRESS e poi rilasciata = stile di vista successivo
+  STYLE_PRESS_MIN: "3s"
+
+  # Nome dell'entita' mostrato dopo uno swipe su/giu' o entrando in una pagina
+  ENTITY_TOAST_TIME: "1500ms"

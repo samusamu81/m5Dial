@@ -1,0 +1,377 @@
+# Logica pagina Luci RGBW: conversione canonico<->locale, encoder, touch-selezione canale,
+# ricalcolo colore reale per gli indicatori (pallino/O). Il sync da Home Assistant (rgbw_can_*/bright_can)
+# e' condiviso con la pagina HWB e vive in light_common.yaml.
+#
+# Due famiglie di variabili (vedi spec):
+# - rgbw_can_*/bright_can: valori "canonici" HA (rgbw_color + brightness dell'entita'), in light_common.yaml
+# - rgbw_loc_*: valori locali = uscita fisica (RGB canonici scalati per la brightness, W invariato),
+#   quelli che l'encoder modifica direttamente
+
+globals:
+  - id: rgbw_loc_r
+    type: int
+    initial_value: '0'
+  - id: rgbw_loc_g
+    type: int
+    initial_value: '0'
+  - id: rgbw_loc_b
+    type: int
+    initial_value: '0'
+  - id: rgbw_loc_w
+    type: int
+    initial_value: '0'
+  - id: rgbw_out_r # output di rgbw_get_rgb: colore "reale" per le righe a croce
+    type: int
+    initial_value: '0'
+  - id: rgbw_out_g
+    type: int
+    initial_value: '0'
+  - id: rgbw_out_b
+    type: int
+    initial_value: '0'
+  - id: rgbw_selected_channel # 0=R, 1=G, 2=B, 3=W, -1=nessuno: quale canale regola l'encoder (toggle al tap, -1 = ruotare e' no-op)
+    type: int
+    initial_value: '-1'
+  - id: rgbw_light_on # stato on/off dell'entita': gating per gli indicatori di colore reale (croce/pallino/O), NON per i canali locali
+    type: bool
+    initial_value: 'false'
+
+font:
+  - file: "gfonts://Roboto@bold"
+    id: font_rgbw_letter
+    size: 28
+    bpp: 4
+  - file: "./fonts/DSEG14Classic-Regular.ttf"
+    id: font_rgbw_value
+    size: 24 # nota: piu' grande dell'1/24 altezza indicato (~10px), per restare leggibile sul device
+    bpp: 4
+    glyphs: "0123456789X" # X per lbl_rgbw_x (indicatore colore reale in seg14)
+  - file: "./fonts/DSEG14Classic-Regular.ttf" # solo per light_rgbw_view_seg14: lettere in stile 14 segmenti come i contatori
+    id: font_rgbw_letter_seg14
+    size: 24
+    bpp: 4
+    glyphs: "RGBW<>" # <> per l'indicatore di selezione ">R<" applicato da rgbw_update_selection
+  - file: "./fonts/DSEG14Classic-Regular.ttf" # etichetta piccola ON/OFF al centro della croce, riusato per la legenda O/I dell'interruttore in analog
+    id: font_rgbw_state_seg14
+    size: 14
+    bpp: 4
+    glyphs: "ONFI"
+  - file: "gfonts://Roboto@bold" # solo per le 8 label ruotate sugli anelli in vista Moderno: font_rgbw_letter dimezzato
+    id: font_rgbw_letter_small
+    size: 14
+    bpp: 4
+
+script:
+  - id: rgbw_get_rgb # colore "reale" percepito, white-blend incluso: RGBW_loc -> rgbw_out_r/g/b
+    mode: single
+    parameters:
+      r: int
+      g: int
+      b: int
+      w: int
+    then:
+      - lambda: |-
+          const float weight_r = 255.0f, weight_g = 214.0f, weight_b = 170.0f; // tinta bianco caldo
+          float out_r = r + weight_r * w / 255.0f;
+          float out_g = g + weight_g * w / 255.0f;
+          float out_b = b + weight_b * w / 255.0f;
+          float max_val = std::max({out_r, out_g, out_b});
+          if (max_val > 255.0f) {
+            out_r = out_r * 255.0f / max_val;
+            out_g = out_g * 255.0f / max_val;
+            out_b = out_b * 255.0f / max_val;
+          }
+          // TODO: valutare se applicare una correzione gamma 2.2 qui
+          id(rgbw_out_r) = (int) roundf(out_r);
+          id(rgbw_out_g) = (int) roundf(out_g);
+          id(rgbw_out_b) = (int) roundf(out_b);
+
+  - id: rgbw_update_loc_from_can # ricalcola i valori locali (= uscita fisica) a partire dai canonici HA + brightness
+    then:
+      - lambda: |-
+          // Sulla striscia (Shelly RGBW) la brightness HA e' un guadagno solo su R/G/B: il bianco
+          // dipende solo da W. Quindi: RGB scalati per la brightness, W invariato.
+          int br = id(bright_can) > 0 ? id(bright_can) : 0;
+          id(rgbw_loc_r) = (int) roundf(id(rgbw_can_r) * br / 255.0f);
+          id(rgbw_loc_g) = (int) roundf(id(rgbw_can_g) * br / 255.0f);
+          id(rgbw_loc_b) = (int) roundf(id(rgbw_can_b) * br / 255.0f);
+          id(rgbw_loc_w) = id(rgbw_can_w);
+
+  - id: rgbw_refresh_view # aggiorna le 4 label numeriche e gli indicatori di colore reale (pallino/O)
+    then:
+      - lvgl.label.update:
+          id: lbl_rgbw_r_val
+          text: !lambda 'char b[4]; snprintf(b, sizeof(b), "%03d", id(rgbw_loc_r)); return b;'
+      - lvgl.label.update:
+          id: lbl_rgbw_g_val
+          text: !lambda 'char b[4]; snprintf(b, sizeof(b), "%03d", id(rgbw_loc_g)); return b;'
+      - lvgl.label.update:
+          id: lbl_rgbw_b_val
+          text: !lambda 'char b[4]; snprintf(b, sizeof(b), "%03d", id(rgbw_loc_b)); return b;'
+      - lvgl.label.update:
+          id: lbl_rgbw_w_val
+          text: !lambda 'char b[4]; snprintf(b, sizeof(b), "%03d", id(rgbw_loc_w)); return b;'
+      - script.execute:
+          id: rgbw_get_rgb
+          r: !lambda 'return id(rgbw_loc_r);'
+          g: !lambda 'return id(rgbw_loc_g);'
+          b: !lambda 'return id(rgbw_loc_b);'
+          w: !lambda 'return id(rgbw_loc_w);'
+      - lvgl.arc.update: # vista Moderno: 4 archi concentrici, stesso valore locale mostrato in 14SEG, grigi se luce off
+          id: arc_rgbw_r
+          value: !lambda 'return id(rgbw_loc_r);'
+          indicator:
+            arc_color: !lambda 'return id(rgbw_light_on) ? Color(0xFF, 0x00, 0x00) : Color(0x80, 0x80, 0x80);'
+      - lvgl.arc.update:
+          id: arc_rgbw_g
+          value: !lambda 'return id(rgbw_loc_g);'
+          indicator:
+            arc_color: !lambda 'return id(rgbw_light_on) ? Color(0x22, 0xC5, 0x5E) : Color(0x80, 0x80, 0x80);'
+      - lvgl.arc.update:
+          id: arc_rgbw_b
+          value: !lambda 'return id(rgbw_loc_b);'
+          indicator:
+            arc_color: !lambda 'return id(rgbw_light_on) ? Color(0x3B, 0x82, 0xF6) : Color(0x80, 0x80, 0x80);'
+      - lvgl.arc.update:
+          id: arc_rgbw_w
+          value: !lambda 'return id(rgbw_loc_w);'
+          indicator:
+            arc_color: !lambda 'return id(rgbw_light_on) ? Color(0xFF, 0xFF, 0xFF) : Color(0x80, 0x80, 0x80);'
+      - lvgl.led.update: # pallino centrale: rgb_color di HA (W gia' fuso nei canali) se luce on, grigio visibile se off (non piu' brightness 0 = invisibile)
+          id: rgbw_center_dot
+          color: !lambda 'return id(rgbw_light_on) ? Color(id(rgb_ha_r), id(rgb_ha_g), id(rgb_ha_b)) : Color(0x80, 0x80, 0x80);'
+          brightness: !lambda 'return id(rgbw_light_on) ? id(bright_can) : 128;' # 0-255, NON 0-1: in lambda ESPHome non scala (lv_led_set_brightness prende uint8_t, 1.0 diventava 1 -> clamp a 80 = led spento)
+      - lvgl.widget.update: # "X" in light_rgbw_view_seg14: stesso colore reale, nero se luce off
+          id: lbl_rgbw_x
+          text_color: !lambda 'return id(rgbw_light_on) ? Color(id(rgbw_out_r), id(rgbw_out_g), id(rgbw_out_b)) : Color(0, 0, 0);'
+      - lvgl.indicator.update: # vista Analog: 4 lancette a rosa dei venti, grigie se luce off (come le etichette)
+          id: rgbw_needle_r
+          value: !lambda 'return id(rgbw_loc_r);'
+      - lvgl.widget.update:
+          id: rgbw_needle_r
+          line_color: !lambda 'return id(rgbw_light_on) ? Color(0xFF, 0x00, 0x00) : Color(0x80, 0x80, 0x80);'
+      - lvgl.indicator.update:
+          id: rgbw_needle_g
+          value: !lambda 'return id(rgbw_loc_g);'
+      - lvgl.widget.update:
+          id: rgbw_needle_g
+          line_color: !lambda 'return id(rgbw_light_on) ? Color(0x22, 0xC5, 0x5E) : Color(0x80, 0x80, 0x80);'
+      - lvgl.indicator.update:
+          id: rgbw_needle_b
+          value: !lambda 'return id(rgbw_loc_b);'
+      - lvgl.widget.update:
+          id: rgbw_needle_b
+          line_color: !lambda 'return id(rgbw_light_on) ? Color(0x3B, 0x82, 0xF6) : Color(0x80, 0x80, 0x80);'
+      - lvgl.indicator.update:
+          id: rgbw_needle_w
+          value: !lambda 'return id(rgbw_loc_w);'
+      - lvgl.widget.update:
+          id: rgbw_needle_w
+          line_color: !lambda 'return id(rgbw_light_on) ? Color(0xFF, 0xFF, 0xFF) : Color(0x80, 0x80, 0x80);'
+      # vista Moderno: le 8 etichette sui 4 anelli diventano nere quando il riempimento dell'arco e' gia'
+      # passato sotto la loro posizione (1/6 per le sinistre a 9 o'clock, 5/6 per le destre a 3 o'clock),
+      # altrimenti restano del colore del canale (leggibili sul fondo grigio scuro non riempito)
+      - lvgl.label.update: # se luce off, sempre nero (indipendente dalla soglia): gli archi sotto sono grigi, non colorati
+          id: lbl_r_l
+          text: !lambda 'char b[4]; snprintf(b, sizeof(b), "%03d", id(rgbw_loc_r)); return b;'
+          text_color: !lambda 'return !id(rgbw_light_on) || id(rgbw_loc_r) > (256.0f / 6.0f) ? Color(0, 0, 0) : Color(0xFF, 0x00, 0x00);'
+      - lvgl.label.update:
+          id: lbl_r_r
+          text: !lambda 'char b[4]; snprintf(b, sizeof(b), "%03d", id(rgbw_loc_r)); return b;'
+          text_color: !lambda 'return !id(rgbw_light_on) || id(rgbw_loc_r) > (5.0f * 256.0f / 6.0f) ? Color(0, 0, 0) : Color(0xFF, 0x00, 0x00);'
+      - lvgl.label.update:
+          id: lbl_g_l
+          text: !lambda 'char b[4]; snprintf(b, sizeof(b), "%03d", id(rgbw_loc_g)); return b;'
+          text_color: !lambda 'return !id(rgbw_light_on) || id(rgbw_loc_g) > (256.0f / 6.0f) ? Color(0, 0, 0) : Color(0x22, 0xC5, 0x5E);'
+      - lvgl.label.update:
+          id: lbl_g_r
+          text: !lambda 'char b[4]; snprintf(b, sizeof(b), "%03d", id(rgbw_loc_g)); return b;'
+          text_color: !lambda 'return !id(rgbw_light_on) || id(rgbw_loc_g) > (5.0f * 256.0f / 6.0f) ? Color(0, 0, 0) : Color(0x22, 0xC5, 0x5E);'
+      - lvgl.label.update:
+          id: lbl_b_l
+          text: !lambda 'char b[4]; snprintf(b, sizeof(b), "%03d", id(rgbw_loc_b)); return b;'
+          text_color: !lambda 'return !id(rgbw_light_on) || id(rgbw_loc_b) > (256.0f / 6.0f) ? Color(0, 0, 0) : Color(0x3B, 0x82, 0xF6);'
+      - lvgl.label.update:
+          id: lbl_b_r
+          text: !lambda 'char b[4]; snprintf(b, sizeof(b), "%03d", id(rgbw_loc_b)); return b;'
+          text_color: !lambda 'return !id(rgbw_light_on) || id(rgbw_loc_b) > (5.0f * 256.0f / 6.0f) ? Color(0, 0, 0) : Color(0x3B, 0x82, 0xF6);'
+      - lvgl.label.update:
+          id: lbl_w_l
+          text: !lambda 'char b[4]; snprintf(b, sizeof(b), "%03d", id(rgbw_loc_w)); return b;'
+          text_color: !lambda 'return !id(rgbw_light_on) || id(rgbw_loc_w) > (256.0f / 6.0f) ? Color(0, 0, 0) : Color(0xFF, 0xFF, 0xFF);'
+      - lvgl.label.update:
+          id: lbl_w_r
+          text: !lambda 'char b[4]; snprintf(b, sizeof(b), "%03d", id(rgbw_loc_w)); return b;'
+          text_color: !lambda 'return !id(rgbw_light_on) || id(rgbw_loc_w) > (5.0f * 256.0f / 6.0f) ? Color(0, 0, 0) : Color(0xFF, 0xFF, 0xFF);'
+
+  - id: rgbw_change_channel # applica un delta encoder al canale selezionato, poi scrive su HA. No-op se nessun canale selezionato (channel < 0)
+    mode: single
+    parameters:
+      channel: int
+      direction: int
+    then:
+      - if:
+          condition:
+            lambda: 'return channel >= 0;'
+          then:
+            - lambda: |-
+                const int DELTA = 4;
+                int loc[4] = {id(rgbw_loc_r), id(rgbw_loc_g), id(rgbw_loc_b), id(rgbw_loc_w)};
+                loc[channel] += DELTA * direction;
+                for (int i = 0; i < 4; i++) {
+                  if (loc[i] > 255) loc[i] = 255;
+                  if (loc[i] < 0) loc[i] = 0;
+                }
+                // brightness fissa a 255 e canali scritti "cosi' come sono": la brightness HA non agisce
+                // su W (vedi rgbw_update_loc_from_can), quindi normalizzare su di essa falserebbe il bianco
+                id(rgbw_loc_r) = loc[0]; id(rgbw_loc_g) = loc[1]; id(rgbw_loc_b) = loc[2]; id(rgbw_loc_w) = loc[3];
+                id(bright_can) = 255;
+                id(rgbw_can_r) = loc[0]; id(rgbw_can_g) = loc[1]; id(rgbw_can_b) = loc[2]; id(rgbw_can_w) = loc[3];
+            - if: # tutti i canali a 0: niente [0,0,0,0] (luce "accesa ma buia"), si spegne
+                condition:
+                  lambda: 'return id(rgbw_loc_r) == 0 && id(rgbw_loc_g) == 0 && id(rgbw_loc_b) == 0 && id(rgbw_loc_w) == 0;'
+                then:
+                  - homeassistant.service:
+                      service: light.turn_off
+                      data:
+                        entity_id: !lambda 'return light_cur(light_list, id(light_sel)).entity;'
+                else:
+                  - homeassistant.service:
+                      service: light.turn_on
+                      data:
+                        entity_id: !lambda 'return light_cur(light_list, id(light_sel)).entity;'
+                        brightness: !lambda 'return id(bright_can);'
+                      data_template:
+                        rgbw_color: !lambda |-
+                          char buf[32];
+                          snprintf(buf, sizeof(buf), "[%d,%d,%d,%d]", id(rgbw_can_r), id(rgbw_can_g), id(rgbw_can_b), id(rgbw_can_w));
+                          return std::string(buf);
+            - script.execute: rgbw_refresh_view
+
+  - id: rgbw_update_selection # sincronizza l'indicatore di canale selezionato: bottoni "checked" in analog, testo ">X<" in seg14, knob in moderno
+    then:
+      - lvgl.arc.update: # vista Moderno: knob visibile solo sull'arco del canale selezionato
+          id: arc_rgbw_r
+          knob:
+            bg_opa: !lambda 'return id(rgbw_selected_channel) == 0 ? 255 : 0;'
+            bg_color: 0xFFFFFF
+            border_color: 0x000000
+            border_width: !lambda 'return id(rgbw_selected_channel) == 0 ? 2 : 0;'
+            pad_all: !lambda 'return id(rgbw_selected_channel) == 0 ? 2 : 0;'
+      - lvgl.arc.update:
+          id: arc_rgbw_g
+          knob:
+            bg_opa: !lambda 'return id(rgbw_selected_channel) == 1 ? 255 : 0;'
+            bg_color: 0xFFFFFF
+            border_color: 0x000000
+            border_width: !lambda 'return id(rgbw_selected_channel) == 1 ? 2 : 0;'
+            pad_all: !lambda 'return id(rgbw_selected_channel) == 1 ? 2 : 0;'
+      - lvgl.arc.update:
+          id: arc_rgbw_b
+          knob:
+            bg_opa: !lambda 'return id(rgbw_selected_channel) == 2 ? 255 : 0;'
+            bg_color: 0xFFFFFF
+            border_color: 0x000000
+            border_width: !lambda 'return id(rgbw_selected_channel) == 2 ? 2 : 0;'
+            pad_all: !lambda 'return id(rgbw_selected_channel) == 2 ? 2 : 0;'
+      - lvgl.arc.update:
+          id: arc_rgbw_w
+          knob:
+            bg_opa: !lambda 'return id(rgbw_selected_channel) == 3 ? 255 : 0;'
+            bg_color: 0xFFFFFF
+            border_color: 0x000000
+            border_width: !lambda 'return id(rgbw_selected_channel) == 3 ? 2 : 0;'
+            pad_all: !lambda 'return id(rgbw_selected_channel) == 3 ? 2 : 0;'
+      - lvgl.label.update: # vista Moderno: riga R G B W sopra il selettore a ciclo, si accende del colore proprio se selezionato
+          id: lbl_moderno_sel_r
+          text_color: !lambda 'return id(rgbw_selected_channel) == 0 ? Color(0xFF, 0x00, 0x00) : Color(0x80, 0x80, 0x80);'
+      - lvgl.label.update:
+          id: lbl_moderno_sel_g
+          text_color: !lambda 'return id(rgbw_selected_channel) == 1 ? Color(0x22, 0xC5, 0x5E) : Color(0x80, 0x80, 0x80);'
+      - lvgl.label.update:
+          id: lbl_moderno_sel_b
+          text_color: !lambda 'return id(rgbw_selected_channel) == 2 ? Color(0x3B, 0x82, 0xF6) : Color(0x80, 0x80, 0x80);'
+      - lvgl.label.update:
+          id: lbl_moderno_sel_w
+          text_color: !lambda 'return id(rgbw_selected_channel) == 3 ? Color(0xFF, 0xFF, 0xFF) : Color(0x80, 0x80, 0x80);'
+      - lvgl.widget.update:
+          id: btn_rgbw_analog_r
+          state: {checked: !lambda 'return id(rgbw_selected_channel) == 0;'}
+      - lvgl.widget.update:
+          id: btn_rgbw_analog_g
+          state: {checked: !lambda 'return id(rgbw_selected_channel) == 1;'}
+      - lvgl.widget.update:
+          id: btn_rgbw_analog_b
+          state: {checked: !lambda 'return id(rgbw_selected_channel) == 2;'}
+      - lvgl.widget.update:
+          id: btn_rgbw_analog_w
+          state: {checked: !lambda 'return id(rgbw_selected_channel) == 3;'}
+      - lvgl.label.update:
+          id: lbl_rgbw_r_letter
+          text: !lambda 'return id(rgbw_selected_channel) == 0 ? std::string(">R<") : std::string("R");'
+      - lvgl.label.update:
+          id: lbl_rgbw_g_letter
+          text: !lambda 'return id(rgbw_selected_channel) == 1 ? std::string(">G<") : std::string("G");'
+      - lvgl.label.update:
+          id: lbl_rgbw_b_letter
+          text: !lambda 'return id(rgbw_selected_channel) == 2 ? std::string(">B<") : std::string("B");'
+      - lvgl.label.update:
+          id: lbl_rgbw_w_letter
+          text: !lambda 'return id(rgbw_selected_channel) == 3 ? std::string(">W<") : std::string("W");'
+  - id: rgbw_on_clockwise
+    mode: queued
+    then:
+      - script.execute:
+          id: rgbw_change_channel
+          channel: !lambda 'return id(rgbw_selected_channel);'
+          direction: 1
+  - id: rgbw_on_anticlockwise
+    mode: queued
+    then:
+      - script.execute:
+          id: rgbw_change_channel
+          channel: !lambda 'return id(rgbw_selected_channel);'
+          direction: -1
+  - id: rgbw_clicked # click ghiera: toggle semplice della luce
+    mode: queued
+    then:
+      - homeassistant.action:
+          action: light.toggle
+          data:
+            entity_id: !lambda 'return light_cur(light_list, id(light_sel)).entity;'
+
+  - id: light_rgbw_cycle_next
+    then:
+      - lambda: |-
+          int n = id(view_style);
+          for (int i = 0; i < 4; i++) {
+            n = n + 1;
+            if (n > ${VIEW_STYLE_FACE}) n = ${VIEW_STYLE_ANALOG};
+            bool enabled = (n == ${VIEW_STYLE_ANALOG} && id(view_flag_analog)) ||
+                           (n == ${VIEW_STYLE_SEG14} && id(view_flag_seg14)) ||
+                           (n == ${VIEW_STYLE_MODERNO} && id(view_flag_moderno)) ||
+                           (n == ${VIEW_STYLE_FACE} && id(view_flag_face));
+            if (enabled) break;
+          }
+          id(view_style) = n;
+      - script.execute: light_rgbw_apply_view_style
+  - id: light_rgbw_apply_view_style # separato da light_rgbw_cycle_next per poter essere richiamato anche al boot/page-load (vedi on_load in light_rgbw_page.yaml)
+    then:
+      - lvgl.widget.update:
+          id: light_rgbw_view_analog
+          hidden: !lambda 'return id(view_style) != ${VIEW_STYLE_ANALOG};'
+      - lvgl.widget.update:
+          id: light_rgbw_view_seg14
+          hidden: !lambda 'return id(view_style) != ${VIEW_STYLE_SEG14};'
+      - lvgl.widget.update:
+          id: light_rgbw_view_moderno
+          hidden: !lambda 'return id(view_style) != ${VIEW_STYLE_MODERNO};'
+      - lvgl.widget.update:
+          id: light_rgbw_view_face
+          hidden: !lambda 'return id(view_style) != ${VIEW_STYLE_FACE};'
+      - if: # entrando in analog/seg14/moderno rinfresca subito i widget, altrimenti restano quelli dell'ultimo sync HA
+          condition:
+            lambda: 'return id(view_style) != ${VIEW_STYLE_FACE};'
+          then:
+            - script.execute: rgbw_refresh_view
+            - script.execute: rgbw_update_selection

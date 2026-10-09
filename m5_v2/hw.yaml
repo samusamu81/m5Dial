@@ -1,0 +1,114 @@
+esphome:
+  name: m5dial-bimbi
+  friendly_name: M5Dial Bimbi
+
+esp32:
+  board: esp32-s3-devkitc-1
+  framework:
+    type: esp-idf
+logger:
+
+spi:
+  id: spi_bus
+  mosi_pin: GPIO5
+  clk_pin: GPIO6
+i2c:
+  - id: internal_i2c
+    sda: GPIO11
+    scl: GPIO12
+    scan: false
+rc522_i2c:
+  - id: nfc_reader
+    i2c_id: internal_i2c
+    address: 0x28
+    on_tag:
+      then:
+        - script.execute: # tag_page.yaml: mostra la pagina, avvisa HA, attende il nome
+            id: tag_on_scan
+            uid: !lambda 'return x;'
+output:
+  - id: m5_oledbacklight
+    platform: ledc
+    pin: GPIO9
+    max_power: 1
+    min_power: 0.1
+    zero_means_zero: true # spento = 0 davvero, non min_power (altrimenti il salvaschermo lascia lo schermo al 10%)
+  - platform: ledc
+    pin: GPIO3
+    id: buzzer
+rtttl:
+  output: buzzer
+switch:
+  - platform: gpio # HOLD: a batteria tiene acceso il dial dopo che si lascia la ghiera; basso = spegnimento (screensaver.yaml)
+    id: power_hold
+    pin:
+      number: GPIO46
+      ignore_strapping_warning: true
+    restore_mode: ALWAYS_ON
+    internal: true
+  - platform: gpio
+    pin: GPIO10
+    id: backlight_switch
+    restore_mode: ALWAYS_ON
+
+time:
+  # RTC
+  - platform: pcf8563
+    id: rtctime
+    i2c_id: internal_i2c
+    address: 0x51
+    update_interval: never
+  - platform: homeassistant
+    id: esptime
+    on_time_sync:
+      then:
+        - pcf8563.write_time:
+  - platform: sntp
+    id: sntp_time
+
+text_sensor:
+  - platform: template # nome nodo: le automazioni HA ricavano da qui il nome del servizio esphome.<nodo>_...
+    id: node_name
+    name: "Nome nodo"
+    entity_category: diagnostic
+    lambda: 'return App.get_name();'
+    update_interval: never
+  - platform: template # player selezionato sulla pagina musica (swipe su/giu'): l'automazione HA dei tag ci fa partire la musica
+    id: music_player_entity
+    name: "Media player"
+    entity_category: diagnostic
+    lambda: 'return music_cur(music_list, id(music_sel)).entity;'
+    update_interval: never
+light:  #TODO -> Turn off
+  - platform: monochromatic
+    name: "Display Backlight"
+    output: m5_oledbacklight
+    id: backlight
+    restore_mode: RESTORE_AND_ON # al riavvio sempre accesa, ma alla luminosita' lasciata
+    on_state: # arco luminosita' in Settings, anche quando la cambia HA
+      - lvgl.arc.update:
+          id: arc_backlight
+          value: !lambda 'return id(backlight).remote_values.get_brightness() * 100;'
+      - lvgl.label.update:
+          id: lbl_backlight
+          text: !lambda 'char b[6]; snprintf(b, sizeof(b), "%d%%", (int) roundf(id(backlight).remote_values.get_brightness() * 100)); return b;'
+    
+
+display:
+  - platform: ili9xxx
+    id: round_display
+    auto_clear_enabled: false # Deve essere disabilitato per l'uso con LVGL
+    update_interval: never
+    model: GC9A01A
+    cs_pin: GPIO7
+    reset_pin: GPIO8
+    dc_pin: GPIO4
+    invert_colors: true
+
+touchscreen:
+  - platform: ft5x06
+    id: touch
+    i2c_id: internal_i2c
+    address: 0x38 # Indirizzo I2C comune per FT5x06
+
+    
